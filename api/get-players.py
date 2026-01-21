@@ -2,7 +2,7 @@ from http.server import BaseHTTPRequestHandler
 import os
 import json
 import urllib.parse
-from sqlalchemy import create_engine, text
+import pymysql
 
 # 國家代碼到中文名稱的映射表
 COUNTRY_CODE_TO_NAME = {
@@ -31,6 +31,51 @@ COUNTRY_CODE_TO_NAME = {
     'VE VEN': '委內瑞拉'
 }
 
+# 資料庫連接配置
+DB_CONFIG = {
+    'host': 'database-test.c4zrhmao4pj4.ap-northeast-1.rds.amazonaws.com',
+    'port': 38064,
+    'user': 'cloudeep',
+    'password': 'iEEsgOxVpU4RIGMo',
+    'database': 'test_ERP_Modules',
+    'charset': 'utf8mb4'
+}
+
+def get_team_chinese_name(team_code):
+    """將球隊代碼轉換為中文國家名稱"""
+    return COUNTRY_CODE_TO_NAME.get(team_code, team_code)
+
+def get_players_from_db(team_code, role):
+    """從資料庫查詢球員列表"""
+    # 將球隊代碼轉換為中文國家名稱
+    country_name = get_team_chinese_name(team_code)
+    
+    # 根據角色決定資料表名稱
+    # role: 'pitcher' 或 'batter' (前端傳遞) 或 'hitter' (參考邏輯)
+    if role in ['pitcher', 'p']:
+        table_name = 'Stonk_pitcher'
+    elif role in ['batter', 'b', 'hitter', 'h']:
+        table_name = 'Stonk_batter'
+    else:
+        raise ValueError(f"Invalid role: {role}")
+    
+    # 連接資料庫
+    connection = pymysql.connect(**DB_CONFIG)
+    
+    try:
+        with connection.cursor() as cursor:
+            # 使用參數化查詢，只查詢球員名稱
+            query = f"SELECT DISTINCT `球員` FROM `{table_name}` WHERE `國家` = %s ORDER BY `球員`"
+            cursor.execute(query, (country_name,))
+            rows = cursor.fetchall()
+            
+            # 提取球員名稱列表
+            players = [row[0] for row in rows if row[0]]  # 過濾掉 None 值
+            
+            return players
+    finally:
+        connection.close()
+
 class handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
@@ -40,80 +85,25 @@ class handler(BaseHTTPRequestHandler):
             query_params = urllib.parse.parse_qs(parsed_path.query)
             
             # 獲取參數
-            countries_param = query_params.get('countries', [])
-            # 處理參數：可能是列表或字符串（用逗號分隔）
-            if isinstance(countries_param, list) and len(countries_param) > 0:
-                countries_str = countries_param[0]
+            team = query_params.get('team', [])
+            if isinstance(team, list) and len(team) > 0:
+                team_code = team[0]
             else:
-                countries_str = countries_param if isinstance(countries_param, str) else ''
-            
-            # 將逗號分隔的字符串轉換為列表
-            country_codes = [c.strip() for c in countries_str.split(',') if c.strip()] if countries_str else []
+                team_code = team if isinstance(team, str) else ''
             
             role = query_params.get('role', ['pitcher'])[0]  # 預設為投手
             
-            if not country_codes:
+            if not team_code:
                 self.send_response(400)
                 self.send_header('Content-type','application/json')
                 self.end_headers()
                 self.wfile.write(json.dumps({
-                    'error': '請至少選擇一個國家'
+                    'error': '請提供球隊代碼'
                 }, ensure_ascii=False).encode('utf-8'))
                 return
             
-            # 將國家代碼轉換為中文名稱
-            country_names = []
-            for code in country_codes:
-                chinese_name = COUNTRY_CODE_TO_NAME.get(code, code)  # 如果找不到映射，使用原值
-                country_names.append(chinese_name)
-            
-            # 連接資料庫
-            engine = create_engine(
-                "mysql+pymysql://cloudeep:iEEsgOxVpU4RIGMo@database-test.c4zrhmao4pj4.ap-northeast-1.rds.amazonaws.com:38064/test_ERP_Modules"
-            )
-            
-            # 根據角色選擇資料表
-            table_name = 'Stonk_pitcher' if role == 'pitcher' else 'Stonk_batter'
-            
-            # 構建 SQL 查詢
-            # 將國家名稱列表轉換為 SQL IN 語句（使用參數化查詢避免 SQL 注入）
-            if len(country_names) == 0:
-                self.send_response(400)
-                self.send_header('Content-type','application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({
-                    'error': '沒有有效的國家名稱'
-                }, ensure_ascii=False).encode('utf-8'))
-                return
-            
-            # 使用更簡單的方式：直接構建 SQL 字符串（值已經過驗證，只包含中文）
-            # 為了安全，我們仍然對值進行轉義
-            escaped_countries = []
-            for name in country_names:
-                # 轉義單引號並包裹在引號中
-                escaped_name = name.replace("'", "''")
-                escaped_countries.append(f"'{escaped_name}'")
-            
-            country_list = ', '.join(escaped_countries)
-            query_str = f"SELECT * FROM `{table_name}` WHERE `國家` IN ({country_list})"
-            query = text(query_str)
-            
-            # 執行查詢（不需要參數，因為已經直接嵌入 SQL）
-            with engine.connect() as conn:
-                result = conn.execute(query)
-                rows = result.fetchall()
-                
-                # 轉換為字典列表
-                players = []
-                for row in rows:
-                    player_dict = {}
-                    for key, value in row._mapping.items():
-                        # 處理日期等特殊類型
-                        if hasattr(value, 'isoformat'):
-                            player_dict[key] = value.isoformat()
-                        else:
-                            player_dict[key] = value
-                    players.append(player_dict)
+            # 從資料庫查詢球員列表
+            players = get_players_from_db(team_code, role)
             
             # 返回結果
             self.send_response(200)
@@ -121,6 +111,8 @@ class handler(BaseHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps({
+                'team': team_code,
+                'role': role,
                 'players': players,
                 'count': len(players)
             }, ensure_ascii=False).encode('utf-8'))
@@ -136,10 +128,8 @@ class handler(BaseHTTPRequestHandler):
                 'type': type(e).__name__,
                 'traceback': traceback.format_exc().splitlines()[-10:],  # 返回最後10行
                 'debug': {
-                    'role': role if 'role' in locals() else 'unknown',
-                    'table_name': table_name if 'table_name' in locals() else 'unknown',
-                    'country_codes': country_codes if 'country_codes' in locals() else [],
-                    'country_names': country_names if 'country_names' in locals() else []
+                    'team': team_code if 'team_code' in locals() else 'unknown',
+                    'role': role if 'role' in locals() else 'unknown'
                 }
             }
             self.wfile.write(json.dumps(error_info, ensure_ascii=False).encode('utf-8'))

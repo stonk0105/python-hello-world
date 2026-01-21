@@ -8,10 +8,8 @@ export default function Home() {
   const [loading, setLoading] = useState<boolean>(false)
   const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set())
   const [selectedRoles, setSelectedRoles] = useState<Set<'pitcher' | 'batter'>>(new Set(['pitcher']))
-  const [playersByRole, setPlayersByRole] = useState<{
-    pitcher: any[]
-    batter: any[]
-  }>({ pitcher: [], batter: [] })
+  // 球員名單快取：{ teamCode: { pitcher: string[], batter: string[] } }
+  const [playersCache, setPlayersCache] = useState<Record<string, { pitcher: string[], batter: string[] }>>({})
   const [loadingPlayers, setLoadingPlayers] = useState<boolean>(false)
 
   // 獲取所有球隊的完整列表（用於全選功能）
@@ -23,13 +21,55 @@ export default function Home() {
     return allTeams
   }
 
+  // 載入單個球隊的球員名單
+  const loadTeamPlayers = async (teamCode: string, role: 'pitcher' | 'batter', forceReload: boolean = false) => {
+    // 檢查快取
+    if (!forceReload && playersCache[teamCode] && playersCache[teamCode][role]?.length > 0) {
+      return // 已存在快取，不需要重新載入
+    }
+
+    try {
+      const params = new URLSearchParams({
+        team: teamCode,
+        role: role
+      })
+      
+      const response = await fetch(`/api/get-players?${params.toString()}`)
+      
+      if (!response.ok) {
+        console.error(`獲取${teamCode}的${role === 'pitcher' ? '投手' : '打者'}名單失敗: ${response.status}`)
+        return
+      }
+      
+      const data = await response.json()
+      if (data.players && Array.isArray(data.players)) {
+        // 更新快取
+        setPlayersCache(prev => ({
+          ...prev,
+          [teamCode]: {
+            ...prev[teamCode],
+            [role]: data.players
+          }
+        }))
+      }
+    } catch (err) {
+      console.error(`載入${teamCode}的${role === 'pitcher' ? '投手' : '打者'}名單失敗:`, err)
+    }
+  }
+
   // 處理球隊選擇
   const handleTeamToggle = (teamCode: string) => {
     const newSelected = new Set(selectedTeams)
     if (newSelected.has(teamCode)) {
+      // 取消選擇
       newSelected.delete(teamCode)
     } else {
+      // 選擇球隊時，自動載入該球隊的所有角色名單
       newSelected.add(teamCode)
+      // 載入打者名單
+      loadTeamPlayers(teamCode, 'batter', true)
+      // 載入投手名單
+      loadTeamPlayers(teamCode, 'pitcher', true)
     }
     setSelectedTeams(newSelected)
   }
@@ -66,70 +106,21 @@ export default function Home() {
     setSelectedRoles(newSelected)
   }
 
-  // 從資料庫獲取球員名單
-  const fetchPlayers = async () => {
+  // 當角色改變時，確保已選擇的球隊都有載入該角色的名單
+  useEffect(() => {
     if (selectedTeams.size === 0 || selectedRoles.size === 0) {
-      setPlayersByRole({ pitcher: [], batter: [] })
       return
     }
 
-    try {
-      setLoadingPlayers(true)
-      const countries = Array.from(selectedTeams)
-      const roles = Array.from(selectedRoles)
-      
-      // 分別查詢每個角色，分別存儲
-      const newPlayersByRole: { pitcher: any[], batter: any[] } = {
-        pitcher: [],
-        batter: []
-      }
-      
-      for (const role of roles) {
-        const params = new URLSearchParams({
-          countries: countries.join(','),
-          role: role
-        })
-        
-        const response = await fetch(`/api/get-players?${params.toString()}`)
-        
-        if (!response.ok) {
-          // 嘗試解析錯誤響應
-          let errorMessage = `獲取${role === 'pitcher' ? '投手' : '打者'}名單失敗: ${response.status}`
-          try {
-            const errorData = await response.json()
-            console.error('API Error:', errorData)
-            if (errorData.error) {
-              errorMessage = `錯誤: ${errorData.error}`
-              if (errorData.debug) {
-                console.error('Debug info:', errorData.debug)
-              }
-            }
-          } catch (e) {
-            // 如果無法解析 JSON，使用默認錯誤信息
-          }
-          throw new Error(errorMessage)
+    // 為每個選中的球隊和角色載入名單（如果尚未載入）
+    Array.from(selectedTeams).forEach(teamCode => {
+      Array.from(selectedRoles).forEach(role => {
+        if (!playersCache[teamCode] || !playersCache[teamCode][role] || playersCache[teamCode][role].length === 0) {
+          loadTeamPlayers(teamCode, role, false)
         }
-        
-        const data = await response.json()
-        if (data.players && Array.isArray(data.players)) {
-          newPlayersByRole[role] = data.players
-        }
-      }
-      
-      setPlayersByRole(newPlayersByRole)
-    } catch (err) {
-      console.error('Fetch players error:', err)
-      const errorMsg = err instanceof Error ? err.message : '獲取球員名單失敗，請稍後再試'
-      alert(errorMsg)
-      setPlayersByRole({ pitcher: [], batter: [] })
-    } finally {
-      setLoadingPlayers(false)
-    }
-  }
-
-  // 當選擇的球隊或角色改變時，自動獲取名單
-  useEffect(() => {
-    fetchPlayers()
+      })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTeams.size, selectedRoles.size])
 
   const pools = {
@@ -332,64 +323,61 @@ export default function Home() {
               <p>載入中...</p>
             ) : (
               <>
-                {Array.from(selectedRoles).map(role => {
-                  const rolePlayers = playersByRole[role]
+                {Array.from(selectedTeams).map(teamCode => {
+                  const team = getAllTeams().find(t => t.code === teamCode)
+                  const teamName = team?.name || teamCode
                   
-                  if (!rolePlayers || rolePlayers.length === 0) return null
-                  
-                  const roleText = role === 'pitcher' ? '投手' : '打者'
-                  const teamCodes = Array.from(selectedTeams)
-                  const teamDisplay = teamCodes.length === 1 
-                    ? teamCodes[0] 
-                    : `${teamCodes[0]} 等${teamCodes.length}隊`
-                  
-                  return (
-                    <div key={role} style={{ marginBottom: '2rem' }}>
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center',
-                        marginBottom: '1rem'
-                      }}>
-                        <h3 style={{ fontSize: '1.1rem', margin: 0 }}>
-                          {teamDisplay} - {roleText}
-                        </h3>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <a 
-                            href="#" 
-                            onClick={(e) => {
-                              e.preventDefault()
-                              // TODO: 實現全選功能
-                            }}
-                            style={{ fontSize: '0.875rem', color: '#007bff' }}
-                          >
-                            全選
-                          </a>
-                          <span> / </span>
-                          <a 
-                            href="#" 
-                            onClick={(e) => {
-                              e.preventDefault()
-                              // TODO: 實現取消全選功能
-                            }}
-                            style={{ fontSize: '0.875rem', color: '#007bff' }}
-                          >
-                            取消全選
-                          </a>
-                        </div>
-                      </div>
-                      <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                        <ul style={{ 
-                          listStyle: 'none', 
-                          padding: 0, 
-                          margin: 0,
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-                          gap: '0.5rem'
+                  return Array.from(selectedRoles).map(role => {
+                    const roleText = role === 'pitcher' ? '投手' : '打者'
+                    const rolePlayers = playersCache[teamCode]?.[role] || []
+                    
+                    if (rolePlayers.length === 0) return null
+                    
+                    return (
+                      <div key={`${teamCode}-${role}`} style={{ marginBottom: '2rem' }}>
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center',
+                          marginBottom: '1rem'
                         }}>
-                          {rolePlayers.map((player, index) => {
-                            const playerName = player.球員 || `球員 ${index + 1}`
-                            return (
+                          <h3 style={{ fontSize: '1.1rem', margin: 0 }}>
+                            {teamCode} - {roleText}
+                          </h3>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <a 
+                              href="#" 
+                              onClick={(e) => {
+                                e.preventDefault()
+                                // TODO: 實現全選功能
+                              }}
+                              style={{ fontSize: '0.875rem', color: '#007bff' }}
+                            >
+                              全選
+                            </a>
+                            <span> / </span>
+                            <a 
+                              href="#" 
+                              onClick={(e) => {
+                                e.preventDefault()
+                                // TODO: 實現取消全選功能
+                              }}
+                              style={{ fontSize: '0.875rem', color: '#007bff' }}
+                            >
+                              取消全選
+                            </a>
+                          </div>
+                        </div>
+                        <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                          <ul style={{ 
+                            listStyle: 'none', 
+                            padding: 0, 
+                            margin: 0,
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                            gap: '0.5rem'
+                          }}>
+                            {rolePlayers.map((playerName, index) => (
                               <li key={index} style={{ 
                                 padding: '0.5rem',
                                 background: 'white',
@@ -398,15 +386,17 @@ export default function Home() {
                               }}>
                                 {playerName}
                               </li>
-                            )
-                          })}
-                        </ul>
+                            ))}
+                          </ul>
+                        </div>
                       </div>
-                    </div>
+                    )
+                  })
+                }).flat()}
+                {Array.from(selectedTeams).every(teamCode => 
+                  Array.from(selectedRoles).every(role => 
+                    !playersCache[teamCode]?.[role] || playersCache[teamCode][role].length === 0
                   )
-                })}
-                {Array.from(selectedRoles).every(role => 
-                  !playersByRole[role] || playersByRole[role].length === 0
                 ) && (
                   <p style={{ color: '#666' }}>沒有找到球員資料</p>
                 )}

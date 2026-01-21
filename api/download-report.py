@@ -292,19 +292,24 @@ class handler(BaseHTTPRequestHandler):
             
             # 檢查是否為查看模式（返回單張圖片）或下載模式（返回 ZIP）
             action = query_params.get('action', ['download'])[0]  # 'view' 或 'download'
+            page = query_params.get('page', ['1'])[0]  # '1' 或 '2'
             
             if action == 'view':
-                # 查看模式：返回 Page1 圖片
-                page1_data = generate_batter_page1('小園海斗', '日本')
+                # 查看模式：根據 page 參數返回對應的圖片
+                if page == '2':
+                    image_data = generate_batter_page2('小園海斗', '日本')
+                else:
+                    # 默認返回 Page1
+                    image_data = generate_batter_page1('小園海斗', '日本')
                 
                 self.send_response(200)
                 self.send_header('Content-type', 'image/png')
-                self.send_header('Content-Length', str(len(page1_data)))
+                self.send_header('Content-Length', str(len(image_data)))
                 self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
                 self.send_header('Pragma', 'no-cache')
                 self.send_header('Expires', '0')
                 self.end_headers()
-                self.wfile.write(page1_data)
+                self.wfile.write(image_data)
             else:
                 # 下載模式：返回 ZIP 文件
                 page1_data = generate_batter_page1('小園海斗', '日本')

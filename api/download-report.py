@@ -8,7 +8,7 @@ class handler(BaseHTTPRequestHandler):
             # 讀取圖片文件
             # 使用與 api/index.py 相同的路徑策略
             project_root = os.path.dirname(os.path.dirname(__file__))
-            image_path = os.path.join(project_root, 'Label_Data', 'Pitcher2.jpg')
+            image_path = os.path.join(project_root, 'Label_Data', 'Pitcher2.png')
             
             if not os.path.exists(image_path):
                 self.send_response(404)
@@ -23,7 +23,7 @@ class handler(BaseHTTPRequestHandler):
             
             # 設置響應頭，顯示圖片（不設置下載）
             self.send_response(200)
-            self.send_header('Content-type','image/jpeg')
+            self.send_header('Content-type','image/png')
             self.send_header('Content-Length', str(len(image_data)))
             self.send_header('Cache-Control', 'public, max-age=3600')
             self.end_headers()

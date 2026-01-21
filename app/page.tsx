@@ -192,8 +192,8 @@ export default function Home() {
       const timestamp = new Date().getTime()
       const playersParam = encodeURIComponent(JSON.stringify(selectedPlayerList))
       
-      // 請求生成報告並下載 ZIP
-      const response = await fetch(`/api/download-report?action=download&players=${playersParam}&t=${timestamp}`)
+      // 先請求生成報告（使用 view 模式，不帶下載頭，避免服務器端錯誤）
+      const response = await fetch(`/api/download-report?action=view&players=${playersParam}&t=${timestamp}`)
       
       if (!response.ok) {
         let errorMessage = `生成報告失敗: ${response.status}`
@@ -209,7 +209,7 @@ export default function Home() {
         throw new Error(errorMessage)
       }
       
-      // 獲取 ZIP 數據
+      // 獲取 ZIP 數據並暫存
       const blob = await response.blob()
       
       // 檢查 blob 是否有效
@@ -217,7 +217,10 @@ export default function Home() {
         throw new Error('生成的報告數據為空')
       }
       
-      // 創建下載連結
+      // 暫存 Blob
+      setImageBlob(blob)
+      
+      // 創建下載連結並立即下載
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -225,9 +228,12 @@ export default function Home() {
       document.body.appendChild(a)
       a.click()
       
-      // 清理
+      // 清理下載相關的資源
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
+      
+      // 下載成功後，清理暫存的數據
+      setImageBlob(null)
       
       // 下載成功後，顯示第一張圖片預覽（可選）
       if (selectedPlayerList.length === 1) {

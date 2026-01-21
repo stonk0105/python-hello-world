@@ -310,7 +310,7 @@ class handler(BaseHTTPRequestHandler):
                 players_list = ['小園海斗']  # 默認球員
             
             # 如果有多個球員，生成 ZIP 文件
-            if len(players_list) > 1 or (len(players_list) == 1 and action == 'download'):
+            if len(players_list) > 1:
                 # 優化：一次查詢所有球員的資料
                 engine = create_engine(
                     "mysql+pymysql://cloudeep:iEEsgOxVpU4RIGMo@database-test.c4zrhmao4pj4.ap-northeast-1.rds.amazonaws.com:38064/test_ERP_Modules"
@@ -318,13 +318,9 @@ class handler(BaseHTTPRequestHandler):
                 with engine.connect() as conn:
                     from sqlalchemy import text
                     # 使用 IN 查詢一次獲取所有球員資料
-                    if len(players_list) == 1:
-                        query = text("SELECT * FROM Stonk_batter WHERE 球員 = :player_0")
-                        params = {'player_0': players_list[0]}
-                    else:
-                        placeholders = ','.join([f':player_{i}' for i in range(len(players_list))])
-                        query = text(f"SELECT * FROM Stonk_batter WHERE 球員 IN ({placeholders})")
-                        params = {f'player_{i}': player for i, player in enumerate(players_list)}
+                    placeholders = ','.join([f':player_{i}' for i in range(len(players_list))])
+                    query = text(f"SELECT * FROM Stonk_batter WHERE 球員 IN ({placeholders})")
+                    params = {f'player_{i}': player for i, player in enumerate(players_list)}
                     df_all_players = pd.read_sql(query, conn, params=params)
                 
                 # 生成所有球員的圖片並打包成 ZIP
@@ -344,10 +340,12 @@ class handler(BaseHTTPRequestHandler):
                 zip_buffer.seek(0)
                 zip_data = zip_buffer.getvalue()
                 
-                # 設置響應頭
+                # 設置響應頭（view 模式不帶下載頭，讓前端處理下載）
                 self.send_response(200)
                 self.send_header('Content-type', 'application/zip')
-                self.send_header('Content-Disposition', 'attachment; filename="打者報告.zip"')
+                # 只有在 download 模式才添加下載頭
+                if action == 'download':
+                    self.send_header('Content-Disposition', 'attachment; filename="打者報告.zip"')
                 self.send_header('Content-Length', str(len(zip_data)))
                 self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
                 self.send_header('Pragma', 'no-cache')

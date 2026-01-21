@@ -6,6 +6,7 @@ export default function Home() {
   const [downloading, setDownloading] = useState<boolean>(false)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState<boolean>(false)
+  const [imageLoaded, setImageLoaded] = useState<boolean>(false)
   const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set())
   const [selectedRoles, setSelectedRoles] = useState<Set<'pitcher' | 'batter'>>(new Set(['pitcher']))
   // 球員名單快取：{ teamCode: { pitcher: string[], batter: string[] } }
@@ -158,6 +159,7 @@ export default function Home() {
   const viewReport = async () => {
     try {
       setLoading(true)
+      setImageLoaded(false) // 重置圖片載入狀態
       // 在 URL 後面加上時間戳和 action=view，強制瀏覽器重新請求（避免快取）
       const timestamp = new Date().getTime()
       // 只請求 Page 1
@@ -166,6 +168,7 @@ export default function Home() {
     } catch (err) {
       console.error('Load image error:', err)
       alert('載入圖片失敗，請稍後再試')
+      setImageLoaded(false)
     } finally {
       setLoading(false)
     }
@@ -180,11 +183,27 @@ export default function Home() {
       const response = await fetch(`/api/download-report?action=download&t=${timestamp}`)
       
       if (!response.ok) {
-        throw new Error(`下載失敗: ${response.status}`)
+        // 嘗試獲取錯誤詳情
+        let errorMessage = `下載失敗: ${response.status}`
+        try {
+          const errorText = await response.text()
+          console.error('Server error response:', errorText)
+          if (errorText) {
+            errorMessage = `下載失敗 (${response.status}): ${errorText.substring(0, 200)}`
+          }
+        } catch (e) {
+          // 如果無法讀取錯誤信息，使用默認錯誤
+        }
+        throw new Error(errorMessage)
       }
       
       // 獲取圖片數據
       const blob = await response.blob()
+      
+      // 檢查 blob 是否有效
+      if (!blob || blob.size === 0) {
+        throw new Error('下載的圖片數據為空')
+      }
       
       // 創建下載連結
       const url = window.URL.createObjectURL(blob)
@@ -199,7 +218,8 @@ export default function Home() {
       document.body.removeChild(a)
     } catch (err) {
       console.error('Download error:', err)
-      alert('下載失敗，請稍後再試')
+      const errorMsg = err instanceof Error ? err.message : '下載失敗，請稍後再試'
+      alert(errorMsg)
     } finally {
       setDownloading(false)
     }
@@ -689,46 +709,73 @@ export default function Home() {
             </button>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center', width: '100%' }}>
-              <img 
-                src={imageUrl} 
-                alt="情蒐報告" 
-                style={{ 
-                  maxWidth: '100%', 
-                  height: 'auto',
-                  borderRadius: '8px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                }}
-              />
+              <div style={{ position: 'relative', width: '100%' }}>
+                {loading && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    padding: '1rem',
+                    background: 'rgba(255, 255, 255, 0.9)',
+                    borderRadius: '8px',
+                    zIndex: 10
+                  }}>
+                    <p style={{ margin: 0, color: '#666' }}>載入中...</p>
+                  </div>
+                )}
+                <img 
+                  src={imageUrl} 
+                  alt="情蒐報告" 
+                  onLoad={() => {
+                    setImageLoaded(true)
+                    setLoading(false)
+                  }}
+                  onError={() => {
+                    setImageLoaded(false)
+                    setLoading(false)
+                    alert('圖片載入失敗，請稍後再試')
+                  }}
+                  style={{ 
+                    maxWidth: '100%', 
+                    height: 'auto',
+                    borderRadius: '8px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    opacity: imageLoaded ? 1 : 0.5,
+                    transition: 'opacity 0.3s ease'
+                  }}
+                />
+              </div>
               <button 
                 onClick={downloadReport}
-                disabled={downloading}
+                disabled={downloading || !imageLoaded}
                 style={{
                   padding: '0.75rem 2rem',
                   fontSize: '1rem',
                   fontWeight: '600',
                   color: '#ffffff',
-                  background: downloading ? '#6c757d' : '#28a745',
+                  background: (downloading || !imageLoaded) ? '#6c757d' : '#28a745',
                   border: 'none',
                   borderRadius: '6px',
-                  cursor: downloading ? 'not-allowed' : 'pointer',
+                  cursor: (downloading || !imageLoaded) ? 'not-allowed' : 'pointer',
                   transition: 'all 0.2s ease',
                   boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                   minWidth: '200px'
                 }}
                 onMouseEnter={(e) => {
-                  if (!downloading) {
+                  if (!downloading && imageLoaded) {
                     e.currentTarget.style.background = '#218838'
                     e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)'
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (!downloading) {
+                  if (!downloading && imageLoaded) {
                     e.currentTarget.style.background = '#28a745'
                     e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)'
                   }
                 }}
               >
-                {downloading ? '下載中...' : '下載報告'}
+                {downloading ? '下載中...' : (!imageLoaded ? '等待圖片載入...' : '下載報告')}
               </button>
             </div>
           )}

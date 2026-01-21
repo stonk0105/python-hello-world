@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 export default function Home() {
   const [downloading, setDownloading] = useState<boolean>(false)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [imageBlob, setImageBlob] = useState<Blob | null>(null) // 暫存圖片數據
   const [loading, setLoading] = useState<boolean>(false)
   const [imageLoaded, setImageLoaded] = useState<boolean>(false)
   const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set())
@@ -160,15 +161,30 @@ export default function Home() {
     try {
       setLoading(true)
       setImageLoaded(false) // 重置圖片載入狀態
+      setImageBlob(null) // 清除舊的暫存
       // 在 URL 後面加上時間戳和 action=view，強制瀏覽器重新請求（避免快取）
       const timestamp = new Date().getTime()
       // 只請求 Page 1
       const imageUrl1 = `/api/download-report?action=view&page=1&t=${timestamp}`
-      setImageUrl(imageUrl1)
+      
+      // 獲取圖片數據並暫存
+      const response = await fetch(imageUrl1)
+      if (!response.ok) {
+        throw new Error(`載入圖片失敗: ${response.status}`)
+      }
+      
+      // 將圖片數據轉換為 blob 並暫存
+      const blob = await response.blob()
+      setImageBlob(blob)
+      
+      // 創建 object URL 用於顯示
+      const url = window.URL.createObjectURL(blob)
+      setImageUrl(url)
     } catch (err) {
       console.error('Load image error:', err)
       alert('載入圖片失敗，請稍後再試')
       setImageLoaded(false)
+      setImageBlob(null)
     } finally {
       setLoading(false)
     }
@@ -176,37 +192,15 @@ export default function Home() {
 
   const downloadReport = async () => {
     try {
+      if (!imageBlob) {
+        alert('沒有可下載的圖片，請先點擊查看')
+        return
+      }
+      
       setDownloading(true)
       
-      // 直接下載 Page 1 圖片（使用 action=download）
-      const timestamp = new Date().getTime()
-      const response = await fetch(`/api/download-report?action=download&t=${timestamp}`)
-      
-      if (!response.ok) {
-        // 嘗試獲取錯誤詳情
-        let errorMessage = `下載失敗: ${response.status}`
-        try {
-          const errorText = await response.text()
-          console.error('Server error response:', errorText)
-          if (errorText) {
-            errorMessage = `下載失敗 (${response.status}): ${errorText.substring(0, 200)}`
-          }
-        } catch (e) {
-          // 如果無法讀取錯誤信息，使用默認錯誤
-        }
-        throw new Error(errorMessage)
-      }
-      
-      // 獲取圖片數據
-      const blob = await response.blob()
-      
-      // 檢查 blob 是否有效
-      if (!blob || blob.size === 0) {
-        throw new Error('下載的圖片數據為空')
-      }
-      
-      // 創建下載連結
-      const url = window.URL.createObjectURL(blob)
+      // 直接使用暫存的圖片數據，不需要再次請求 API
+      const url = window.URL.createObjectURL(imageBlob)
       const a = document.createElement('a')
       a.href = url
       a.download = '小園海斗_完整報告p1.png'
@@ -216,6 +210,10 @@ export default function Home() {
       // 清理
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
+      
+      // 下載成功後，清理暫存的圖片數據
+      setImageBlob(null)
+      
     } catch (err) {
       console.error('Download error:', err)
       const errorMsg = err instanceof Error ? err.message : '下載失敗，請稍後再試'
@@ -734,6 +732,12 @@ export default function Home() {
                   onError={() => {
                     setImageLoaded(false)
                     setLoading(false)
+                    setImageBlob(null)
+                    // 清理 object URL
+                    if (imageUrl) {
+                      window.URL.revokeObjectURL(imageUrl)
+                      setImageUrl(null)
+                    }
                     alert('圖片載入失敗，請稍後再試')
                   }}
                   style={{ 

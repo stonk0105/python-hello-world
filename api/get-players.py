@@ -86,18 +86,21 @@ class handler(BaseHTTPRequestHandler):
                 }, ensure_ascii=False).encode('utf-8'))
                 return
             
-            # 使用 SQLAlchemy 的參數化查詢
-            # 構建參數化查詢字符串
-            placeholders = ', '.join([f':country_{i}' for i in range(len(country_names))])
-            query_str = f"SELECT * FROM `{table_name}` WHERE `國家` IN ({placeholders})"
+            # 使用更簡單的方式：直接構建 SQL 字符串（值已經過驗證，只包含中文）
+            # 為了安全，我們仍然對值進行轉義
+            escaped_countries = []
+            for name in country_names:
+                # 轉義單引號並包裹在引號中
+                escaped_name = name.replace("'", "''")
+                escaped_countries.append(f"'{escaped_name}'")
+            
+            country_list = ', '.join(escaped_countries)
+            query_str = f"SELECT * FROM `{table_name}` WHERE `國家` IN ({country_list})"
             query = text(query_str)
             
-            # 構建參數字典
-            params = {f'country_{i}': name for i, name in enumerate(country_names)}
-            
-            # 執行查詢
+            # 執行查詢（不需要參數，因為已經直接嵌入 SQL）
             with engine.connect() as conn:
-                result = conn.execute(query, params)
+                result = conn.execute(query)
                 rows = result.fetchall()
                 
                 # 轉換為字典列表

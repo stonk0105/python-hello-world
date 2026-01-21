@@ -47,6 +47,40 @@ export default function Home() {
     }
   }
 
+  const downloadImage = async () => {
+    try {
+      if (!imageUrl) return
+      
+      setDownloading(true)
+      const response = await fetch(imageUrl)
+      
+      if (!response.ok) {
+        throw new Error(`下載失敗: ${response.status}`)
+      }
+      
+      // 獲取圖片數據
+      const blob = await response.blob()
+      
+      // 創建下載連結
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = '情蒐報告.jpg'
+      document.body.appendChild(a)
+      a.click()
+      
+      // 清理
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : '下載失敗'
+      setError(errorMsg)
+      console.error('Download error:', err)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   return (
     <main className="container">
       <div className="content">
@@ -92,9 +126,21 @@ export default function Home() {
                   maxWidth: '100%', 
                   height: 'auto',
                   borderRadius: '8px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  marginBottom: '1rem'
                 }}
               />
+              <button 
+                onClick={downloadImage} 
+                disabled={downloading}
+                className="download-button"
+                style={{ 
+                  width: '100%',
+                  marginTop: '0.5rem'
+                }}
+              >
+                {downloading ? '下載中...' : '下載圖片'}
+              </button>
             </div>
           )}
         </div>

@@ -86,10 +86,14 @@ class handler(BaseHTTPRequestHandler):
                 }, ensure_ascii=False).encode('utf-8'))
                 return
             
-            placeholders = ', '.join([f':country{i}' for i in range(len(country_names))])
-            # 使用反引號包裹資料表名稱，避免特殊字符問題
-            query = text(f"SELECT * FROM `{table_name}` WHERE `國家` IN ({placeholders})")
-            params = {f'country{i}': name for i, name in enumerate(country_names)}
+            # 使用 SQLAlchemy 的參數化查詢
+            # 構建參數化查詢字符串
+            placeholders = ', '.join([f':country_{i}' for i in range(len(country_names))])
+            query_str = f"SELECT * FROM `{table_name}` WHERE `國家` IN ({placeholders})"
+            query = text(query_str)
+            
+            # 構建參數字典
+            params = {f'country_{i}': name for i, name in enumerate(country_names)}
             
             # 執行查詢
             with engine.connect() as conn:

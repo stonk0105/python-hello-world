@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 
 export default function Home() {
-  const [downloading, setDownloading] = useState<boolean>(false)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [imageBlob, setImageBlob] = useState<Blob | null>(null) // 暫存圖片數據
   const [loading, setLoading] = useState<boolean>(false)
@@ -180,6 +179,22 @@ export default function Home() {
       // 創建 object URL 用於顯示
       const url = window.URL.createObjectURL(blob)
       setImageUrl(url)
+      
+      // 圖片生成後，立即觸發下載
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = downloadUrl
+      a.download = '小園海斗_完整報告p1.png'
+      document.body.appendChild(a)
+      a.click()
+      
+      // 清理下載相關的資源
+      window.URL.revokeObjectURL(downloadUrl)
+      document.body.removeChild(a)
+      
+      // 下載成功後，清理暫存的圖片數據
+      setImageBlob(null)
+      
     } catch (err) {
       console.error('Load image error:', err)
       alert('載入圖片失敗，請稍後再試')
@@ -187,39 +202,6 @@ export default function Home() {
       setImageBlob(null)
     } finally {
       setLoading(false)
-    }
-  }
-
-  const downloadReport = async () => {
-    try {
-      if (!imageBlob) {
-        alert('沒有可下載的圖片，請先點擊查看')
-        return
-      }
-      
-      setDownloading(true)
-      
-      // 直接使用暫存的圖片數據，不需要再次請求 API
-      const url = window.URL.createObjectURL(imageBlob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = '小園海斗_完整報告p1.png'
-      document.body.appendChild(a)
-      a.click()
-      
-      // 清理
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-      
-      // 下載成功後，清理暫存的圖片數據
-      setImageBlob(null)
-      
-    } catch (err) {
-      console.error('Download error:', err)
-      const errorMsg = err instanceof Error ? err.message : '下載失敗，請稍後再試'
-      alert(errorMsg)
-    } finally {
-      setDownloading(false)
     }
   }
 
@@ -703,7 +685,7 @@ export default function Home() {
                 }
               }}
             >
-              {loading ? '載入中...' : '查看'}
+              {loading ? '生成中...' : '查看並下載'}
             </button>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center', width: '100%' }}>
@@ -751,35 +733,35 @@ export default function Home() {
                 />
               </div>
               <button 
-                onClick={downloadReport}
-                disabled={downloading || !imageLoaded}
+                onClick={viewReport}
+                disabled={loading}
                 style={{
                   padding: '0.75rem 2rem',
                   fontSize: '1rem',
                   fontWeight: '600',
                   color: '#ffffff',
-                  background: (downloading || !imageLoaded) ? '#6c757d' : '#28a745',
+                  background: loading ? '#6c757d' : '#28a745',
                   border: 'none',
                   borderRadius: '6px',
-                  cursor: (downloading || !imageLoaded) ? 'not-allowed' : 'pointer',
+                  cursor: loading ? 'not-allowed' : 'pointer',
                   transition: 'all 0.2s ease',
                   boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                   minWidth: '200px'
                 }}
                 onMouseEnter={(e) => {
-                  if (!downloading && imageLoaded) {
+                  if (!loading) {
                     e.currentTarget.style.background = '#218838'
                     e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)'
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (!downloading && imageLoaded) {
+                  if (!loading) {
                     e.currentTarget.style.background = '#28a745'
                     e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)'
                   }
                 }}
               >
-                {downloading ? '下載中...' : (!imageLoaded ? '等待圖片載入...' : '下載報告')}
+                {loading ? '生成中...' : '重新生成並下載'}
               </button>
             </div>
           )}

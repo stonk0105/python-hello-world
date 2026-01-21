@@ -4,6 +4,8 @@ import { useState } from 'react'
 
 export default function Home() {
   const [downloading, setDownloading] = useState<boolean>(false)
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState<boolean>(false)
 
   const pools = {
     'Pool A': [
@@ -35,10 +37,26 @@ export default function Home() {
     ]
   }
 
+  const viewReport = async () => {
+    try {
+      setLoading(true)
+      // 直接使用圖片 URL，讓瀏覽器顯示圖片
+      const imageUrl = '/api/download-report'
+      setImageUrl(imageUrl)
+    } catch (err) {
+      console.error('Load image error:', err)
+      alert('載入圖片失敗，請稍後再試')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const downloadReport = async () => {
     try {
+      if (!imageUrl) return
+      
       setDownloading(true)
-      const response = await fetch('/api/download-report')
+      const response = await fetch(imageUrl)
       
       if (!response.ok) {
         throw new Error(`下載失敗: ${response.status}`)
@@ -125,15 +143,39 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Download Button */}
+        {/* View/Download Button */}
         <div className="statsinsight-download">
-          <button 
-            onClick={downloadReport}
-            disabled={downloading}
-            className="download-report-button"
-          >
-            {downloading ? '下載中...' : '下載報告'}
-          </button>
+          {!imageUrl ? (
+            <button 
+              onClick={viewReport}
+              disabled={loading}
+              className="download-report-button"
+            >
+              {loading ? '載入中...' : '查看'}
+            </button>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
+              <img 
+                src={imageUrl} 
+                alt="情蒐報告" 
+                style={{ 
+                  maxWidth: '100%', 
+                  height: 'auto',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  marginBottom: '1rem'
+                }}
+              />
+              <button 
+                onClick={downloadReport}
+                disabled={downloading}
+                className="download-report-button"
+                style={{ width: '200px' }}
+              >
+                {downloading ? '下載中...' : '下載報告'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </main>

@@ -5,7 +5,6 @@ import { useState, useEffect } from 'react'
 export default function Home() {
   const [downloading, setDownloading] = useState<boolean>(false)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
-  const [imageUrl2, setImageUrl2] = useState<string | null>(null)
   const [loading, setLoading] = useState<boolean>(false)
   const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set())
   const [selectedRoles, setSelectedRoles] = useState<Set<'pitcher' | 'batter'>>(new Set(['pitcher']))
@@ -161,11 +160,9 @@ export default function Home() {
       setLoading(true)
       // 在 URL 後面加上時間戳和 action=view，強制瀏覽器重新請求（避免快取）
       const timestamp = new Date().getTime()
-      // 同時請求兩張圖片
+      // 只請求 Page 1
       const imageUrl1 = `/api/download-report?action=view&page=1&t=${timestamp}`
-      const imageUrl2 = `/api/download-report?action=view&page=2&t=${timestamp}`
       setImageUrl(imageUrl1)
-      setImageUrl2(imageUrl2)
     } catch (err) {
       console.error('Load image error:', err)
       alert('載入圖片失敗，請稍後再試')
@@ -178,7 +175,7 @@ export default function Home() {
     try {
       setDownloading(true)
       
-      // 直接下載 ZIP 文件（使用 action=download）
+      // 直接下載 Page 1 圖片（使用 action=download）
       const timestamp = new Date().getTime()
       const response = await fetch(`/api/download-report?action=download&t=${timestamp}`)
       
@@ -186,14 +183,14 @@ export default function Home() {
         throw new Error(`下載失敗: ${response.status}`)
       }
       
-      // 獲取 ZIP 數據
+      // 獲取圖片數據
       const blob = await response.blob()
       
       // 創建下載連結
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = '小園海斗_完整報告.zip'
+      a.download = '小園海斗_完整報告p1.png'
       document.body.appendChild(a)
       a.click()
       
@@ -692,38 +689,16 @@ export default function Home() {
             </button>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center', width: '100%' }}>
-              {/* Page 1 */}
-              {imageUrl && (
-                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-                  <h4 style={{ margin: 0, fontSize: '0.9rem', color: '#666', fontWeight: '500' }}>Page 1</h4>
-                  <img 
-                    src={imageUrl} 
-                    alt="情蒐報告 Page 1" 
-                    style={{ 
-                      maxWidth: '100%', 
-                      height: 'auto',
-                      borderRadius: '8px',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                    }}
-                  />
-                </div>
-              )}
-              {/* Page 2 */}
-              {imageUrl2 && (
-                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-                  <h4 style={{ margin: 0, fontSize: '0.9rem', color: '#666', fontWeight: '500' }}>Page 2</h4>
-                  <img 
-                    src={imageUrl2} 
-                    alt="情蒐報告 Page 2" 
-                    style={{ 
-                      maxWidth: '100%', 
-                      height: 'auto',
-                      borderRadius: '8px',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                    }}
-                  />
-                </div>
-              )}
+              <img 
+                src={imageUrl} 
+                alt="情蒐報告" 
+                style={{ 
+                  maxWidth: '100%', 
+                  height: 'auto',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                }}
+              />
               <button 
                 onClick={downloadReport}
                 disabled={downloading}

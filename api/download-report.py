@@ -311,31 +311,21 @@ class handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(image_data)
             else:
-                # 下載模式：返回 ZIP 文件
+                # 下載模式：返回 Page 1 圖片
                 page1_data = generate_batter_page1('小園海斗', '日本')
-                page2_data = generate_batter_page2('小園海斗', '日本')
-                
-                # 創建 ZIP 文件
-                zip_buffer = io.BytesIO()
-                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                    zip_file.writestr('小園海斗_完整報告p1.png', page1_data)
-                    zip_file.writestr('小園海斗_完整報告p2.png', page2_data)
-                
-                zip_buffer.seek(0)
-                zip_data = zip_buffer.getvalue()
                 
                 # 設置響應頭
                 self.send_response(200)
-                self.send_header('Content-type', 'application/zip')
-                self.send_header('Content-Disposition', 'attachment; filename="小園海斗_完整報告.zip"')
-                self.send_header('Content-Length', str(len(zip_data)))
+                self.send_header('Content-type', 'image/png')
+                self.send_header('Content-Disposition', 'attachment; filename="小園海斗_完整報告p1.png"')
+                self.send_header('Content-Length', str(len(page1_data)))
                 self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
                 self.send_header('Pragma', 'no-cache')
                 self.send_header('Expires', '0')
                 self.end_headers()
                 
-                # 發送 ZIP 數據
-                self.wfile.write(zip_data)
+                # 發送圖片數據
+                self.wfile.write(page1_data)
             
         except Exception as e:
             import traceback

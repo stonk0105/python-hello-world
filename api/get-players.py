@@ -4,6 +4,33 @@ import json
 import urllib.parse
 from sqlalchemy import create_engine, text
 
+# 國家代碼到中文名稱的映射表
+COUNTRY_CODE_TO_NAME = {
+    # Pool A
+    'CA CAN': '加拿大',
+    'CO COL': '哥倫比亞',
+    'CU CUB': '古巴',
+    'PA PAN': '巴拿馬',
+    'PR PUR': '波多黎各',
+    # Pool B
+    'GB GBR': '英國',
+    'IT ITA': '義大利',
+    'MX MEX': '墨西哥',
+    'US USA': '美國',
+    'BR BRA': '巴西',
+    # Pool C
+    'AU AUS': '澳洲',
+    'CZ CZE': '捷克',
+    'JP JPN': '日本',
+    'KR KOR': '韓國',
+    # Pool D
+    'DO DOM': '多明尼加',
+    'IL ISR': '以色列',
+    'NL NLD': '荷蘭',
+    'NI NIC': '尼加拉瓜',
+    'VE VEN': '委內瑞拉'
+}
+
 class handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
@@ -21,11 +48,11 @@ class handler(BaseHTTPRequestHandler):
                 countries_str = countries_param if isinstance(countries_param, str) else ''
             
             # 將逗號分隔的字符串轉換為列表
-            countries = [c.strip() for c in countries_str.split(',') if c.strip()] if countries_str else []
+            country_codes = [c.strip() for c in countries_str.split(',') if c.strip()] if countries_str else []
             
             role = query_params.get('role', ['pitcher'])[0]  # 預設為投手
             
-            if not countries:
+            if not country_codes:
                 self.send_response(400)
                 self.send_header('Content-type','application/json')
                 self.end_headers()
@@ -33,6 +60,12 @@ class handler(BaseHTTPRequestHandler):
                     'error': '請至少選擇一個國家'
                 }, ensure_ascii=False).encode('utf-8'))
                 return
+            
+            # 將國家代碼轉換為中文名稱
+            country_names = []
+            for code in country_codes:
+                chinese_name = COUNTRY_CODE_TO_NAME.get(code, code)  # 如果找不到映射，使用原值
+                country_names.append(chinese_name)
             
             # 連接資料庫
             engine = create_engine(
@@ -43,13 +76,14 @@ class handler(BaseHTTPRequestHandler):
             table_name = 'Stonk_pitcher' if role == 'pitcher' else 'Stonk_batter'
             
             # 構建 SQL 查詢
-            # 將國家列表轉換為 SQL IN 語句
-            countries_str = ','.join([f"'{c}'" for c in countries])
-            query = f"SELECT * FROM {table_name} WHERE 國家 IN ({countries_str})"
+            # 將國家名稱列表轉換為 SQL IN 語句（使用參數化查詢避免 SQL 注入）
+            placeholders = ', '.join([f':country{i}' for i in range(len(country_names))])
+            query = text(f"SELECT * FROM {table_name} WHERE 國家 IN ({placeholders})")
+            params = {f'country{i}': name for i, name in enumerate(country_names)}
             
             # 執行查詢
             with engine.connect() as conn:
-                result = conn.execute(text(query))
+                result = conn.execute(query, params)
                 rows = result.fetchall()
                 
                 # 轉換為字典列表

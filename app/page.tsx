@@ -1,11 +1,89 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function Home() {
   const [downloading, setDownloading] = useState<boolean>(false)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState<boolean>(false)
+  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set())
+  const [selectedRole, setSelectedRole] = useState<'pitcher' | 'batter'>('pitcher')
+  const [players, setPlayers] = useState<any[]>([])
+  const [loadingPlayers, setLoadingPlayers] = useState<boolean>(false)
+
+  // 獲取所有球隊的完整列表（用於全選功能）
+  const getAllTeams = () => {
+    const allTeams: { code: string; name: string }[] = []
+    Object.values(pools).forEach(teams => {
+      allTeams.push(...teams)
+    })
+    return allTeams
+  }
+
+  // 處理球隊選擇
+  const handleTeamToggle = (teamCode: string) => {
+    const newSelected = new Set(selectedTeams)
+    if (newSelected.has(teamCode)) {
+      newSelected.delete(teamCode)
+    } else {
+      newSelected.add(teamCode)
+    }
+    setSelectedTeams(newSelected)
+  }
+
+  // 處理全選
+  const handleSelectAll = (poolName: string) => {
+    const poolTeams = pools[poolName as keyof typeof pools]
+    const poolCodes = poolTeams.map(t => t.code)
+    const allSelected = poolCodes.every(code => selectedTeams.has(code))
+    
+    const newSelected = new Set(selectedTeams)
+    if (allSelected) {
+      // 取消全選
+      poolCodes.forEach(code => newSelected.delete(code))
+    } else {
+      // 全選
+      poolCodes.forEach(code => newSelected.add(code))
+    }
+    setSelectedTeams(newSelected)
+  }
+
+  // 從資料庫獲取球員名單
+  const fetchPlayers = async () => {
+    if (selectedTeams.size === 0) {
+      setPlayers([])
+      return
+    }
+
+    try {
+      setLoadingPlayers(true)
+      const countries = Array.from(selectedTeams)
+      const params = new URLSearchParams({
+        countries: countries.join(','),
+        role: selectedRole
+      })
+      
+      const response = await fetch(`/api/get-players?${params.toString()}`)
+      
+      if (!response.ok) {
+        throw new Error(`獲取名單失敗: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      setPlayers(data.players || [])
+    } catch (err) {
+      console.error('Fetch players error:', err)
+      alert('獲取球員名單失敗，請稍後再試')
+      setPlayers([])
+    } finally {
+      setLoadingPlayers(false)
+    }
+  }
+
+  // 當選擇的球隊或角色改變時，自動獲取名單
+  useEffect(() => {
+    fetchPlayers()
+  }, [selectedTeams.size, selectedRole])
 
   const pools = {
     'Pool A': [
@@ -123,7 +201,16 @@ export default function Home() {
             <div key={poolName} className="pool-column">
               <div className="pool-header">
                 <h3>{poolName}</h3>
-                <a href="#" className="select-all-link">全選</a>
+                <a 
+                  href="#" 
+                  className="select-all-link"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleSelectAll(poolName)
+                  }}
+                >
+                  全選
+                </a>
               </div>
               <div className="pool-teams">
                 {teams.map((team) => (
@@ -132,6 +219,8 @@ export default function Home() {
                       type="checkbox" 
                       id={team.code}
                       className="team-checkbox"
+                      checked={selectedTeams.has(team.code)}
+                      onChange={() => handleTeamToggle(team.code)}
                     />
                     <label htmlFor={team.code} className="team-label">
                       <span className="team-code">{team.code}</span>
@@ -143,6 +232,97 @@ export default function Home() {
             </div>
           ))}
         </div>
+
+        {/* 選擇角色 */}
+        {selectedTeams.size > 0 && (
+          <div className="statsinsight-role-selection" style={{ 
+            marginTop: '2rem', 
+            padding: '1.5rem', 
+            background: '#f8f9fa', 
+            borderRadius: '8px',
+            border: '2px solid #e9ecef'
+          }}>
+            <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>選擇角色</h3>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <span style={{ fontWeight: '500' }}>
+                {Array.from(selectedTeams).map(code => {
+                  const team = getAllTeams().find(t => t.code === code)
+                  return team?.name || code
+                }).join(', ')}
+              </span>
+              <div style={{ display: 'flex', gap: '1rem', marginLeft: 'auto' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input 
+                    type="radio" 
+                    name="role"
+                    value="pitcher"
+                    checked={selectedRole === 'pitcher'}
+                    onChange={() => setSelectedRole('pitcher')}
+                  />
+                  <span>投手</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input 
+                    type="radio" 
+                    name="role"
+                    value="batter"
+                    checked={selectedRole === 'batter'}
+                    onChange={() => setSelectedRole('batter')}
+                  />
+                  <span>打者</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 球員名單 */}
+        {selectedTeams.size > 0 && (
+          <div className="statsinsight-players" style={{ 
+            marginTop: '2rem', 
+            padding: '1.5rem', 
+            background: '#f8f9fa', 
+            borderRadius: '8px',
+            border: '2px solid #e9ecef'
+          }}>
+            <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>
+              球員名單 {loadingPlayers && '(載入中...)'}
+            </h3>
+            {loadingPlayers ? (
+              <p>載入中...</p>
+            ) : players.length > 0 ? (
+              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                <ul style={{ 
+                  listStyle: 'none', 
+                  padding: 0, 
+                  margin: 0,
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                  gap: '0.5rem'
+                }}>
+                  {players.map((player, index) => {
+                    const playerName = player.球員 || `球員 ${index + 1}`
+                    return (
+                      <li key={index} style={{ 
+                        padding: '0.5rem',
+                        background: 'white',
+                        borderRadius: '4px',
+                        border: '1px solid #e9ecef'
+                      }}>
+                        {playerName}
+                      </li>
+                    )
+                  })}
+                </ul>
+                <p style={{ marginTop: '1rem', color: '#666', fontSize: '0.875rem' }}>
+                  共 {players.length} 位球員
+                </p>
+              </div>
+            ) : (
+              <p style={{ color: '#666' }}>沒有找到球員資料</p>
+            )}
+          </div>
+        )}
 
         {/* View/Download Button */}
         <div className="statsinsight-download">

@@ -15,6 +15,12 @@ export default function Home() {
   // 選中的球員：{ `${teamCode}-${role}-${playerName}`: boolean }
   const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set())
 
+  // 計算選中的打者數量
+  const selectedBatterCount = Array.from(selectedPlayers).filter(playerId => {
+    const parts = playerId.split('-')
+    return parts.length >= 3 && parts[1] === 'batter'
+  }).length
+
   // 獲取所有球隊的完整列表（用於全選功能）
   const getAllTeams = () => {
     const allTeams: { code: string; name: string }[] = []
@@ -158,46 +164,85 @@ export default function Home() {
 
   const viewReport = async () => {
     try {
+      // 收集選中的球員
+      const selectedPlayerList: string[] = []
+      Array.from(selectedPlayers).forEach(playerId => {
+        // playerId 格式: `${teamCode}-${role}-${playerName}`
+        const parts = playerId.split('-')
+        if (parts.length >= 3) {
+          const playerName = parts.slice(2).join('-') // 處理球員名稱中可能包含 '-' 的情況
+          const role = parts[1]
+          // 只處理打者（batter）
+          if (role === 'batter') {
+            selectedPlayerList.push(playerName)
+          }
+        }
+      })
+      
+      if (selectedPlayerList.length === 0) {
+        alert('請至少選擇一個打者')
+        return
+      }
+      
       setLoading(true)
       setImageLoaded(false) // 重置圖片載入狀態
       setImageBlob(null) // 清除舊的暫存
-      // 在 URL 後面加上時間戳和 action=view，強制瀏覽器重新請求（避免快取）
-      const timestamp = new Date().getTime()
-      // 只請求 Page 1
-      const imageUrl1 = `/api/download-report?action=view&page=1&t=${timestamp}`
       
-      // 獲取圖片數據並暫存
-      const response = await fetch(imageUrl1)
+      // 在 URL 後面加上時間戳和球員列表，強制瀏覽器重新請求（避免快取）
+      const timestamp = new Date().getTime()
+      const playersParam = encodeURIComponent(JSON.stringify(selectedPlayerList))
+      
+      // 請求生成報告並下載 ZIP
+      const response = await fetch(`/api/download-report?action=download&players=${playersParam}&t=${timestamp}`)
+      
       if (!response.ok) {
-        throw new Error(`載入圖片失敗: ${response.status}`)
+        let errorMessage = `生成報告失敗: ${response.status}`
+        try {
+          const errorText = await response.text()
+          console.error('Server error response:', errorText)
+          if (errorText) {
+            errorMessage = `錯誤 (${response.status}): ${errorText.substring(0, 200)}`
+          }
+        } catch (e) {
+          // 如果無法讀取錯誤信息，使用默認錯誤
+        }
+        throw new Error(errorMessage)
       }
       
-      // 將圖片數據轉換為 blob 並暫存
+      // 獲取 ZIP 數據
       const blob = await response.blob()
-      setImageBlob(blob)
       
-      // 創建 object URL 用於顯示
+      // 檢查 blob 是否有效
+      if (!blob || blob.size === 0) {
+        throw new Error('生成的報告數據為空')
+      }
+      
+      // 創建下載連結
       const url = window.URL.createObjectURL(blob)
-      setImageUrl(url)
-      
-      // 圖片生成後，立即觸發下載
-      const downloadUrl = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = downloadUrl
-      a.download = '小園海斗_完整報告p1.png'
+      a.href = url
+      a.download = `打者報告_${selectedPlayerList.length}人.zip`
       document.body.appendChild(a)
       a.click()
       
-      // 清理下載相關的資源
-      window.URL.revokeObjectURL(downloadUrl)
+      // 清理
+      window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
       
-      // 下載成功後，清理暫存的圖片數據
-      setImageBlob(null)
+      // 下載成功後，顯示第一張圖片預覽（可選）
+      if (selectedPlayerList.length === 1) {
+        // 如果只有一個球員，顯示預覽
+        const previewUrl = `/api/download-report?action=view&page=1&players=${playersParam}&t=${timestamp}`
+        setImageUrl(previewUrl)
+      } else {
+        // 多個球員，不顯示預覽
+        setImageUrl(null)
+      }
       
     } catch (err) {
-      console.error('Load image error:', err)
-      alert('載入圖片失敗，請稍後再試')
+      console.error('Generate report error:', err)
+      const errorMsg = err instanceof Error ? err.message : '生成報告失敗，請稍後再試'
+      alert(errorMsg)
       setImageLoaded(false)
       setImageBlob(null)
     } finally {
@@ -685,7 +730,7 @@ export default function Home() {
                 }
               }}
             >
-              {loading ? '生成中...' : '查看並下載'}
+              {loading ? '生成中...' : (selectedBatterCount > 0 ? `生成並下載報告 (${selectedBatterCount} 人)` : '生成並下載報告')}
             </button>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center', width: '100%' }}>

@@ -26,7 +26,7 @@ except ImportError as e:
     print(f"Warning: Could not import p12_func or func: {e}")
     p12_func = None
 
-def generate_batter_page1(batter_name='小園海斗', country='日本'):
+def generate_batter_page1(batter_name='小園海斗', country='日本', df_all_players=None):
     """生成打者報告第一頁"""
     project_root = os.path.dirname(os.path.dirname(__file__))
     
@@ -50,16 +50,19 @@ def generate_batter_page1(batter_name='小園海斗', country='日本'):
         font = ImageFont.load_default()
         statistic_font = ImageFont.load_default()
     
-    # 從資料庫獲取球員資料
-    engine = create_engine(
-        "mysql+pymysql://cloudeep:iEEsgOxVpU4RIGMo@database-test.c4zrhmao4pj4.ap-northeast-1.rds.amazonaws.com:38064/test_ERP_Modules"
-    )
-    
-    # 查詢球員資料（使用參數化查詢）
-    with engine.connect() as conn:
-        from sqlalchemy import text
-        query = text("SELECT * FROM Stonk_batter WHERE 球員 = :player_name LIMIT 1")
-        df_player_stat = pd.read_sql(query, conn, params={'player_name': batter_name})
+    # 從傳入的資料或資料庫獲取球員資料
+    if df_all_players is not None:
+        # 使用傳入的資料（已優化查詢）
+        df_player_stat = df_all_players[df_all_players['球員'] == batter_name].reset_index(drop=True)
+    else:
+        # 如果沒有傳入資料，則從資料庫查詢（向後兼容）
+        engine = create_engine(
+            "mysql+pymysql://cloudeep:iEEsgOxVpU4RIGMo@database-test.c4zrhmao4pj4.ap-northeast-1.rds.amazonaws.com:38064/test_ERP_Modules"
+        )
+        with engine.connect() as conn:
+            from sqlalchemy import text
+            query = text("SELECT * FROM Stonk_batter WHERE 球員 = :player_name LIMIT 1")
+            df_player_stat = pd.read_sql(query, conn, params={'player_name': batter_name})
     
     if len(df_player_stat) == 0:
         raise ValueError(f'找不到球員: {batter_name}')
@@ -286,6 +289,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             import urllib.parse
+            import json
             # 解析查詢參數
             parsed_path = urllib.parse.urlparse(self.path)
             query_params = urllib.parse.parse_qs(parsed_path.query)
@@ -294,29 +298,85 @@ class handler(BaseHTTPRequestHandler):
             action = query_params.get('action', ['download'])[0]  # 'view' 或 'download'
             page = query_params.get('page', ['1'])[0]  # '1' 或 '2'
             
-            # 生成圖片數據（view 和 download 使用相同的邏輯）
-            if action == 'view' and page == '2':
-                image_data = generate_batter_page2('小園海斗', '日本')
+            # 獲取球員列表（如果有的話）
+            players_param = query_params.get('players', [])
+            if players_param:
+                # 解析 JSON 格式的球員列表
+                try:
+                    players_list = json.loads(players_param[0]) if isinstance(players_param[0], str) else players_param
+                except:
+                    players_list = players_param if isinstance(players_param, list) else [players_param[0]] if players_param else []
             else:
-                # 默認返回 Page1（view 和 download 都使用這個）
-                image_data = generate_batter_page1('小園海斗', '日本')
+                players_list = ['小園海斗']  # 默認球員
             
-            # 設置響應頭
-            self.send_response(200)
-            self.send_header('Content-type', 'image/png')
-            self.send_header('Content-Length', str(len(image_data)))
-            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
-            self.send_header('Pragma', 'no-cache')
-            self.send_header('Expires', '0')
-            
-            # 如果是下載模式，添加下載頭
-            if action == 'download':
-                filename = '小園海斗_完整報告p1.png'
-                # 使用簡單的文件名設置方式
-                self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
-            
-            self.end_headers()
-            self.wfile.write(image_data)
+            # 如果有多個球員，生成 ZIP 文件
+            if len(players_list) > 1 or (len(players_list) == 1 and action == 'download'):
+                # 優化：一次查詢所有球員的資料
+                engine = create_engine(
+                    "mysql+pymysql://cloudeep:iEEsgOxVpU4RIGMo@database-test.c4zrhmao4pj4.ap-northeast-1.rds.amazonaws.com:38064/test_ERP_Modules"
+                )
+                with engine.connect() as conn:
+                    from sqlalchemy import text
+                    # 使用 IN 查詢一次獲取所有球員資料
+                    if len(players_list) == 1:
+                        query = text("SELECT * FROM Stonk_batter WHERE 球員 = :player_0")
+                        params = {'player_0': players_list[0]}
+                    else:
+                        placeholders = ','.join([f':player_{i}' for i in range(len(players_list))])
+                        query = text(f"SELECT * FROM Stonk_batter WHERE 球員 IN ({placeholders})")
+                        params = {f'player_{i}': player for i, player in enumerate(players_list)}
+                    df_all_players = pd.read_sql(query, conn, params=params)
+                
+                # 生成所有球員的圖片並打包成 ZIP
+                zip_buffer = io.BytesIO()
+                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                    for player_name in players_list:
+                        try:
+                            # 使用已查詢的資料生成圖片
+                            image_data = generate_batter_page1(player_name, '日本', df_all_players)
+                            filename = f'{player_name}_完整報告p1.png'
+                            zip_file.writestr(filename, image_data)
+                        except Exception as e:
+                            # 如果某個球員生成失敗，記錄錯誤但繼續處理其他球員
+                            print(f'生成 {player_name} 的報告失敗: {str(e)}')
+                            continue
+                
+                zip_buffer.seek(0)
+                zip_data = zip_buffer.getvalue()
+                
+                # 設置響應頭
+                self.send_response(200)
+                self.send_header('Content-type', 'application/zip')
+                self.send_header('Content-Disposition', 'attachment; filename="打者報告.zip"')
+                self.send_header('Content-Length', str(len(zip_data)))
+                self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+                self.send_header('Pragma', 'no-cache')
+                self.send_header('Expires', '0')
+                self.end_headers()
+                self.wfile.write(zip_data)
+            else:
+                # 單個球員，返回單張圖片（用於查看）
+                if action == 'view' and page == '2':
+                    image_data = generate_batter_page2(players_list[0], '日本')
+                else:
+                    # 默認返回 Page1
+                    image_data = generate_batter_page1(players_list[0], '日本')
+                
+                # 設置響應頭
+                self.send_response(200)
+                self.send_header('Content-type', 'image/png')
+                self.send_header('Content-Length', str(len(image_data)))
+                self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+                self.send_header('Pragma', 'no-cache')
+                self.send_header('Expires', '0')
+                
+                # 如果是下載模式，添加下載頭
+                if action == 'download':
+                    filename = f'{players_list[0]}_完整報告p1.png'
+                    self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+                
+                self.end_headers()
+                self.wfile.write(image_data)
             
         except Exception as e:
             import traceback

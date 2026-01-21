@@ -1,58 +1,44 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 export default function Home() {
-  const [message, setMessage] = useState<string>('')
-  const [loading, setLoading] = useState<boolean>(true)
-  const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState<boolean>(false)
 
-  useEffect(() => {
-    fetchMessage()
-  }, [])
-
-  const fetchMessage = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const response = await fetch('/api')
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      const text = await response.text()
-      setMessage(text)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch message')
-    } finally {
-      setLoading(false)
-    }
+  const pools = {
+    'Pool A': [
+      { code: 'CA CAN', name: 'Canada' },
+      { code: 'CO COL', name: 'Colombia' },
+      { code: 'CU CUB', name: 'Cuba' },
+      { code: 'PA PAN', name: 'Panama' },
+      { code: 'PR PUR', name: 'Puerto Rico' }
+    ],
+    'Pool B': [
+      { code: 'GB GBR', name: 'Great Britain' },
+      { code: 'IT ITA', name: 'Italy' },
+      { code: 'MX MEX', name: 'Mexico' },
+      { code: 'US USA', name: 'United States of America' },
+      { code: 'BR BRA', name: 'Brazil' }
+    ],
+    'Pool C': [
+      { code: 'AU AUS', name: 'Australia' },
+      { code: 'CZ CZE', name: 'Czech Republic' },
+      { code: 'JP JPN', name: 'Japan' },
+      { code: 'KR KOR', name: 'South Korea' }
+    ],
+    'Pool D': [
+      { code: 'DO DOM', name: 'Dominican Republic' },
+      { code: 'IL ISR', name: 'Israel' },
+      { code: 'NL NLD', name: 'Netherlands' },
+      { code: 'NI NIC', name: 'Nicaragua' },
+      { code: 'VE VEN', name: 'Venezuela' }
+    ]
   }
 
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
-
-  const loadImage = async () => {
+  const downloadReport = async () => {
     try {
       setDownloading(true)
-      setError(null)
-      // 直接使用圖片 URL
-      const imageUrl = '/api/download-report'
-      setImageUrl(imageUrl)
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : '載入圖片失敗'
-      setError(errorMsg)
-      console.error('Load image error:', err)
-    } finally {
-      setDownloading(false)
-    }
-  }
-
-  const downloadImage = async () => {
-    try {
-      if (!imageUrl) return
-      
-      setDownloading(true)
-      const response = await fetch(imageUrl)
+      const response = await fetch('/api/download-report')
       
       if (!response.ok) {
         throw new Error(`下載失敗: ${response.status}`)
@@ -73,84 +59,81 @@ export default function Home() {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : '下載失敗'
-      setError(errorMsg)
       console.error('Download error:', err)
+      alert('下載失敗，請稍後再試')
     } finally {
       setDownloading(false)
     }
   }
 
   return (
-    <main className="container">
-      <div className="content">
-        <h1>Python Hello World with Next.js</h1>
-        
-        <div className="api-section">
-          <h2>API Response:</h2>
-          {loading && <p className="loading">載入中...</p>}
-          {error && (
-            <div className="error">
-              <p>錯誤: {error}</p>
-              <button onClick={fetchMessage}>重試</button>
+    <main className="statsinsight-container">
+      <div className="statsinsight-content">
+        {/* Header */}
+        <header className="statsinsight-header">
+          <div className="statsinsight-logo">
+            <div className="logo-circle">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                <path d="M3 3v18h18M7 16l4-8 4 8 4-12"/>
+              </svg>
             </div>
-          )}
-          {!loading && !error && (
-            <div className="success">
-              <p className="message">{message}</p>
-              <button onClick={fetchMessage}>重新載入</button>
-            </div>
-          )}
+          </div>
+          <div className="statsinsight-title">
+            <h1>StatsInsight</h1>
+            <p>灼見運動數據</p>
+          </div>
+        </header>
+
+        {/* Instructions */}
+        <p className="statsinsight-instruction">
+          請先選擇球隊,然後為每支球隊選擇要下載的打者或投手報告。
+        </p>
+
+        {/* Search Bar */}
+        <div className="statsinsight-search">
+          <input 
+            type="text" 
+            placeholder="搜尋球隊..." 
+            className="search-input"
+          />
         </div>
 
-        <div className="download-section">
-          <h2>情蒐報告</h2>
+        {/* Team Pools */}
+        <div className="statsinsight-pools">
+          {Object.entries(pools).map(([poolName, teams]) => (
+            <div key={poolName} className="pool-column">
+              <div className="pool-header">
+                <h3>{poolName}</h3>
+                <a href="#" className="select-all-link">全選</a>
+              </div>
+              <div className="pool-teams">
+                {teams.map((team) => (
+                  <div key={team.code} className="team-item">
+                    <input 
+                      type="checkbox" 
+                      id={team.code}
+                      className="team-checkbox"
+                    />
+                    <label htmlFor={team.code} className="team-label">
+                      <span className="team-code">{team.code}</span>
+                      <span className="team-name">{team.name}</span>
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Download Button */}
+        <div className="statsinsight-download">
           <button 
-            onClick={loadImage} 
+            onClick={downloadReport}
             disabled={downloading}
-            className="download-button"
+            className="download-report-button"
           >
-            {downloading ? '載入中...' : '顯示情蒐報告'}
+            {downloading ? '下載中...' : '下載報告'}
           </button>
-          {error && (
-            <div className="error" style={{ marginTop: '1rem', fontSize: '0.9rem' }}>
-              <p>錯誤: {error}</p>
-            </div>
-          )}
-          {imageUrl && (
-            <div style={{ marginTop: '1rem' }}>
-              <img 
-                src={imageUrl} 
-                alt="情蒐報告" 
-                style={{ 
-                  maxWidth: '100%', 
-                  height: 'auto',
-                  borderRadius: '8px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  marginBottom: '1rem'
-                }}
-              />
-              <button 
-                onClick={downloadImage} 
-                disabled={downloading}
-                className="download-button"
-                style={{ 
-                  width: '100%',
-                  marginTop: '0.5rem'
-                }}
-              >
-                {downloading ? '下載中...' : '下載圖片'}
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="info">
-          <p>這個專案展示了如何在 Vercel 上整合 Next.js 前端與 Python Serverless Function。</p>
-          <ul>
-            <li>前端：Next.js 13+ App Router</li>
-            <li>後端：Python Serverless Function (<code>/api</code>)</li>
-          </ul>
         </div>
       </div>
     </main>

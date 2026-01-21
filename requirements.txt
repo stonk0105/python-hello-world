@@ -1,0 +1,17 @@
+# Python 依賴套件
+# Vercel 會自動使用此文件安裝 Python 庫
+
+# 目前使用的都是 Python 標準庫，不需要額外安裝：
+# - os (標準庫)
+# - tempfile (標準庫)
+# - shutil (標準庫)
+# - http.server (標準庫)
+
+# 如果需要生成圖片，可以添加 Pillow：
+# Pillow>=10.0.0
+
+# 如果需要處理數據，可以添加 pandas：
+# pandas>=2.0.0
+
+# 如果需要繪圖，可以添加 matplotlib：
+# matplotlib>=3.7.0

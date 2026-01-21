@@ -53,11 +53,60 @@ python-hello-world/
 │   ├── page.tsx           # 主頁面
 │   └── globals.css        # 全域樣式
 ├── api/                    # Python Serverless Functions
-│   └── index.py           # Python API 端點
+│   ├── index.py           # Python API 端點
+│   └── download-report.py # 圖片下載端點
+├── Label_Data/            # 圖片資料目錄
+│   └── pitcher1.jpg       # 情蒐報告圖片
 ├── package.json           # Node.js 依賴
+├── requirements.txt       # Python 依賴（Vercel 自動安裝）
 ├── next.config.js         # Next.js 配置
 ├── tsconfig.json          # TypeScript 配置
 └── vercel.json            # Vercel 配置
+```
+
+## Python 依賴管理
+
+### 添加 Python 庫
+
+在 Vercel 上使用 Python Serverless Functions 時，需要通過 `requirements.txt` 文件來指定依賴：
+
+1. **編輯 `requirements.txt`**：
+```txt
+# 添加需要的庫
+Pillow>=10.0.0
+pandas>=2.0.0
+```
+
+2. **部署時自動安裝**：
+   - Vercel 會在部署時自動檢測 `requirements.txt`
+   - 自動安裝所有列出的 Python 庫
+   - 無需手動配置
+
+3. **常用的圖片處理庫**：
+```txt
+# 生成圖片
+Pillow>=10.0.0
+
+# 數據處理
+pandas>=2.0.0
+numpy>=1.24.0
+
+# 繪圖
+matplotlib>=3.7.0
+```
+
+### 本地測試 Python 庫
+
+在本地開發時，如果使用了第三方庫，需要先安裝：
+
+```bash
+# 創建虛擬環境（可選）
+python3 -m venv venv
+source venv/bin/activate  # Mac/Linux
+# 或 venv\Scripts\activate  # Windows
+
+# 安裝依賴
+pip install -r requirements.txt
 ```
 
 ## 部署

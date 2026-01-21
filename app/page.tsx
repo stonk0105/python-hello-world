@@ -32,10 +32,19 @@ export default function Home() {
   const downloadReport = async () => {
     try {
       setDownloading(true)
+      setError(null)
       const response = await fetch('/api/download-report')
       
       if (!response.ok) {
-        throw new Error(`下載失敗: ${response.status}`)
+        // 嘗試獲取錯誤詳情
+        const contentType = response.headers.get('content-type')
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json()
+          throw new Error(`下載失敗 (${response.status}): ${JSON.stringify(errorData, null, 2)}`)
+        } else {
+          const errorText = await response.text()
+          throw new Error(`下載失敗 (${response.status}): ${errorText}`)
+        }
       }
       
       // 獲取圖片數據
@@ -53,7 +62,9 @@ export default function Home() {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
     } catch (err) {
-      alert(err instanceof Error ? err.message : '下載失敗')
+      const errorMsg = err instanceof Error ? err.message : '下載失敗'
+      setError(errorMsg)
+      console.error('Download error:', err)
     } finally {
       setDownloading(false)
     }
@@ -90,6 +101,11 @@ export default function Home() {
           >
             {downloading ? '下載中...' : '下載情蒐報告'}
           </button>
+          {error && error.includes('下載失敗') && (
+            <div className="error" style={{ marginTop: '1rem', fontSize: '0.9rem' }}>
+              <p>錯誤: {error}</p>
+            </div>
+          )}
         </div>
 
         <div className="info">

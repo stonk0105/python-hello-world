@@ -1,21 +1,57 @@
 from http.server import BaseHTTPRequestHandler
 import os
+import sys
+import traceback
 
 class handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         try:
-            # 讀取圖片文件
-            # 在 Vercel 中，__file__ 是 api/download-report.py
-            # 需要回到專案根目錄，然後進入 Label_Data
-            base_dir = os.path.dirname(os.path.dirname(__file__))
-            image_path = os.path.join(base_dir, 'Label_Data', 'pitcher1.jpg')
+            # 在 Vercel 中，工作目錄通常是 /var/task
+            # 嘗試多種路徑策略
             
-            if not os.path.exists(image_path):
+            # 策略1: 相對於當前文件
+            current_file = __file__
+            base_dir1 = os.path.dirname(os.path.dirname(current_file))
+            image_path1 = os.path.join(base_dir1, 'Label_Data', 'pitcher1.jpg')
+            
+            # 策略2: 相對於工作目錄
+            cwd = os.getcwd()
+            image_path2 = os.path.join(cwd, 'Label_Data', 'pitcher1.jpg')
+            
+            # 策略3: 絕對路徑（Vercel 標準）
+            image_path3 = os.path.join('/var/task', 'Label_Data', 'pitcher1.jpg')
+            
+            # 策略4: 相對於 api 目錄
+            api_dir = os.path.dirname(current_file)
+            image_path4 = os.path.join(api_dir, '..', 'Label_Data', 'pitcher1.jpg')
+            image_path4 = os.path.normpath(image_path4)
+            
+            # 嘗試所有路徑
+            image_path = None
+            for path in [image_path1, image_path2, image_path3, image_path4]:
+                if os.path.exists(path):
+                    image_path = path
+                    break
+            
+            if not image_path:
+                # 返回詳細的調試信息
+                debug_info = {
+                    'current_file': current_file,
+                    'cwd': cwd,
+                    'tried_paths': [image_path1, image_path2, image_path3, image_path4],
+                    'all_paths_exist': [os.path.exists(p) for p in [image_path1, image_path2, image_path3, image_path4]],
+                    'parent_dir_contents': os.listdir(os.path.dirname(os.path.dirname(current_file))) if os.path.exists(os.path.dirname(os.path.dirname(current_file))) else 'N/A'
+                }
+                
                 self.send_response(404)
-                self.send_header('Content-type','text/plain')
+                self.send_header('Content-type','application/json')
                 self.end_headers()
-                self.wfile.write(f'Image not found at: {image_path}'.encode('utf-8'))
+                import json
+                self.wfile.write(json.dumps({
+                    'error': 'Image not found',
+                    'debug': debug_info
+                }, indent=2).encode('utf-8'))
                 return
             
             # 讀取圖片二進制內容
@@ -34,8 +70,17 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(image_data)
             
         except Exception as e:
+            # 返回詳細錯誤信息
+            error_trace = traceback.format_exc()
             self.send_response(500)
-            self.send_header('Content-type','text/plain')
+            self.send_header('Content-type','application/json')
             self.end_headers()
-            error_msg = f'Error: {str(e)}'
-            self.wfile.write(error_msg.encode('utf-8'))
+            import json
+            error_info = {
+                'error': str(e),
+                'type': type(e).__name__,
+                'traceback': error_trace,
+                'current_file': __file__ if '__file__' in globals() else 'N/A',
+                'cwd': os.getcwd()
+            }
+            self.wfile.write(json.dumps(error_info, indent=2).encode('utf-8'))

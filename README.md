@@ -16,29 +16,33 @@
 
 ## 本地開發
 
-### 使用 Next.js 開發伺服器（推薦）
+### 使用 Vercel CLI（推薦 - 包含 Python Serverless Functions）
+
+**重要**：Python Serverless Functions 需要使用 `vercel dev` 才能正常運行。
 
 ```bash
+# 安裝 Vercel CLI（如果尚未安裝）
+npm i -g vercel
+
 # 安裝依賴
 npm install
 
-# 啟動開發伺服器
+# 啟動 Vercel 開發環境（包含 Next.js 和 Python Serverless Functions）
+vercel dev
+# 或使用：npm run dev:vercel
+```
+
+這將同時運行 Next.js 前端和 Python Serverless Functions，前端在 `http://localhost:3000` 運行。
+
+### 僅使用 Next.js 開發伺服器（不包含 Python API）
+
+如果只想測試前端部分（Python API 將無法訪問）：
+
+```bash
 npm run dev
 ```
 
-前端將在 `http://localhost:3000` 運行，Python API 可以通過 `http://localhost:3000/api` 訪問。
-
-### 使用 Vercel CLI（完整測試）
-
-```bash
-# 安裝 Vercel CLI
-npm i -g vercel
-
-# 啟動 Vercel 開發環境（包含 Serverless Functions）
-vercel dev
-```
-
-這將同時運行 Next.js 前端和 Python Serverless Functions。
+**注意**：使用 `npm run dev` 時，`/api` 端點將返回 404，因為 Python Serverless Functions 不會運行。要同時運行 Python API，必須使用 `vercel dev`。
 
 ## 專案結構
 
@@ -73,6 +77,7 @@ vercel
 ## API 端點
 
 - **GET /api** - 返回 "Hello, world!" 訊息（Python Serverless Function）
+- **GET /api/download-report** - 下載情蒐報告圖片（Python Serverless Function）
 
 ## 技術棧
 

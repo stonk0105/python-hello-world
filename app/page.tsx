@@ -6,6 +6,7 @@ export default function Home() {
   const [message, setMessage] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  const [downloading, setDownloading] = useState<boolean>(false)
 
   useEffect(() => {
     fetchMessage()
@@ -25,6 +26,36 @@ export default function Home() {
       setError(err instanceof Error ? err.message : 'Failed to fetch message')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const downloadReport = async () => {
+    try {
+      setDownloading(true)
+      const response = await fetch('/api/download-report')
+      
+      if (!response.ok) {
+        throw new Error(`下載失敗: ${response.status}`)
+      }
+      
+      // 獲取圖片數據
+      const blob = await response.blob()
+      
+      // 創建下載連結
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = '情蒐報告.jpg'
+      document.body.appendChild(a)
+      a.click()
+      
+      // 清理
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '下載失敗')
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -48,6 +79,17 @@ export default function Home() {
               <button onClick={fetchMessage}>重新載入</button>
             </div>
           )}
+        </div>
+
+        <div className="download-section">
+          <h2>情蒐報告下載</h2>
+          <button 
+            onClick={downloadReport} 
+            disabled={downloading}
+            className="download-button"
+          >
+            {downloading ? '下載中...' : '下載情蒐報告'}
+          </button>
         </div>
 
         <div className="info">

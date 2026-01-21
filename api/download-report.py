@@ -8,7 +8,7 @@ class handler(BaseHTTPRequestHandler):
             # 讀取圖片文件
             # 使用與 api/index.py 相同的路徑策略
             project_root = os.path.dirname(os.path.dirname(__file__))
-            image_path = os.path.join(project_root, 'Label_Data', 'pitcher1.jpg')
+            image_path = os.path.join(project_root, 'Label_Data', 'Pitcher2.jpg')
             
             if not os.path.exists(image_path):
                 self.send_response(404)

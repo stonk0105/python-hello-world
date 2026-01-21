@@ -10,7 +10,7 @@ class handler(BaseHTTPRequestHandler):
             project_root = os.path.dirname(os.path.dirname(__file__))
             
             # 優先使用 Pitcher2.png
-            image_path = os.path.join(project_root, 'Label_Data', 'Pitcher2.png')
+            image_path = os.path.join(project_root, 'Label_Data', 'Batter1.png')
             
             # 如果 Pitcher2.png 不存在，返回錯誤（不要自動降級到其他圖片）
             if not os.path.exists(image_path):

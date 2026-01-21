@@ -66,14 +66,29 @@ export default function Home() {
       const response = await fetch(`/api/get-players?${params.toString()}`)
       
       if (!response.ok) {
-        throw new Error(`獲取名單失敗: ${response.status}`)
+        // 嘗試解析錯誤響應
+        let errorMessage = `獲取名單失敗: ${response.status}`
+        try {
+          const errorData = await response.json()
+          console.error('API Error:', errorData)
+          if (errorData.error) {
+            errorMessage = `錯誤: ${errorData.error}`
+            if (errorData.debug) {
+              console.error('Debug info:', errorData.debug)
+            }
+          }
+        } catch (e) {
+          // 如果無法解析 JSON，使用默認錯誤信息
+        }
+        throw new Error(errorMessage)
       }
       
       const data = await response.json()
       setPlayers(data.players || [])
     } catch (err) {
       console.error('Fetch players error:', err)
-      alert('獲取球員名單失敗，請稍後再試')
+      const errorMsg = err instanceof Error ? err.message : '獲取球員名單失敗，請稍後再試'
+      alert(errorMsg)
       setPlayers([])
     } finally {
       setLoadingPlayers(false)

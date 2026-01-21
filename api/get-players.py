@@ -77,8 +77,18 @@ class handler(BaseHTTPRequestHandler):
             
             # 構建 SQL 查詢
             # 將國家名稱列表轉換為 SQL IN 語句（使用參數化查詢避免 SQL 注入）
+            if len(country_names) == 0:
+                self.send_response(400)
+                self.send_header('Content-type','application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    'error': '沒有有效的國家名稱'
+                }, ensure_ascii=False).encode('utf-8'))
+                return
+            
             placeholders = ', '.join([f':country{i}' for i in range(len(country_names))])
-            query = text(f"SELECT * FROM {table_name} WHERE 國家 IN ({placeholders})")
+            # 使用反引號包裹資料表名稱，避免特殊字符問題
+            query = text(f"SELECT * FROM `{table_name}` WHERE `國家` IN ({placeholders})")
             params = {f'country{i}': name for i, name in enumerate(country_names)}
             
             # 執行查詢
@@ -109,12 +119,20 @@ class handler(BaseHTTPRequestHandler):
             }, ensure_ascii=False).encode('utf-8'))
             
         except Exception as e:
+            import traceback
             self.send_response(500)
             self.send_header('Content-type','application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             error_info = {
                 'error': str(e),
-                'type': type(e).__name__
+                'type': type(e).__name__,
+                'traceback': traceback.format_exc().splitlines()[-10:],  # 返回最後10行
+                'debug': {
+                    'role': role if 'role' in locals() else 'unknown',
+                    'table_name': table_name if 'table_name' in locals() else 'unknown',
+                    'country_codes': country_codes if 'country_codes' in locals() else [],
+                    'country_names': country_names if 'country_names' in locals() else []
+                }
             }
             self.wfile.write(json.dumps(error_info, ensure_ascii=False).encode('utf-8'))

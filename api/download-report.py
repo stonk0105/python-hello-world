@@ -294,38 +294,29 @@ class handler(BaseHTTPRequestHandler):
             action = query_params.get('action', ['download'])[0]  # 'view' 或 'download'
             page = query_params.get('page', ['1'])[0]  # '1' 或 '2'
             
-            if action == 'view':
-                # 查看模式：根據 page 參數返回對應的圖片
-                if page == '2':
-                    image_data = generate_batter_page2('小園海斗', '日本')
-                else:
-                    # 默認返回 Page1
-                    image_data = generate_batter_page1('小園海斗', '日本')
-                
-                self.send_response(200)
-                self.send_header('Content-type', 'image/png')
-                self.send_header('Content-Length', str(len(image_data)))
-                self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
-                self.send_header('Pragma', 'no-cache')
-                self.send_header('Expires', '0')
-                self.end_headers()
-                self.wfile.write(image_data)
+            # 生成圖片數據（view 和 download 使用相同的邏輯）
+            if action == 'view' and page == '2':
+                image_data = generate_batter_page2('小園海斗', '日本')
             else:
-                # 下載模式：返回 Page 1 圖片
-                page1_data = generate_batter_page1('小園海斗', '日本')
-                
-                # 設置響應頭
-                self.send_response(200)
-                self.send_header('Content-type', 'image/png')
-                self.send_header('Content-Disposition', 'attachment; filename="小園海斗_完整報告p1.png"')
-                self.send_header('Content-Length', str(len(page1_data)))
-                self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
-                self.send_header('Pragma', 'no-cache')
-                self.send_header('Expires', '0')
-                self.end_headers()
-                
-                # 發送圖片數據
-                self.wfile.write(page1_data)
+                # 默認返回 Page1（view 和 download 都使用這個）
+                image_data = generate_batter_page1('小園海斗', '日本')
+            
+            # 設置響應頭
+            self.send_response(200)
+            self.send_header('Content-type', 'image/png')
+            self.send_header('Content-Length', str(len(image_data)))
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
+            
+            # 如果是下載模式，添加下載頭
+            if action == 'download':
+                filename = '小園海斗_完整報告p1.png'
+                # 使用簡單的文件名設置方式
+                self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+            
+            self.end_headers()
+            self.wfile.write(image_data)
             
         except Exception as e:
             import traceback

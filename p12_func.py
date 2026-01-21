@@ -589,7 +589,9 @@ class p12_func:
         bgc='#FFFFFF'
         axes1 = fig.add_axes([left, bottom, width, height],facecolor=bgc,zorder = order) 
         ax=axes1
-        Pic = np.array(Image.open('./Label_Data/落點底圖線圖-01.png'))
+        current_directory = os.path.dirname(__file__)
+        image_path = os.path.join(current_directory, 'Label_Data', '落點底圖線圖-01.png')
+        Pic = np.array(Image.open(image_path))
         image = ax.imshow(Pic, cmap=plt.cm.gray, extent=[-400, 400, -100, 500],alpha=1, zorder =  order) 
 
         scLoc = mscatter(dft['LocX'] , dft['LocY'],c=list(dft['PRColor']),s=(3)**2, m=list(dft['HTMark']), ax=ax,alpha=1,picker=True,edgecolors='black',linewidth=0.3)

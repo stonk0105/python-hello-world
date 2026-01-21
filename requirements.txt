@@ -6,11 +6,12 @@ SQLAlchemy>=2.0.0
 pymysql>=1.1.0
 cryptography>=41.0.0
 
-# 如果需要生成圖片，可以添加 Pillow：
-# Pillow>=10.0.0
+# 生成圖片
+Pillow>=10.0.0
 
-# 如果需要處理數據，可以添加 pandas：
-# pandas>=2.0.0
+# 處理數據
+pandas>=2.0.0
 
-# 如果需要繪圖，可以添加 matplotlib：
-# matplotlib>=3.7.0
+# 繪圖
+matplotlib>=3.7.0
+openpyxl>=3.1.0

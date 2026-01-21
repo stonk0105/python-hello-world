@@ -158,9 +158,9 @@ export default function Home() {
   const viewReport = async () => {
     try {
       setLoading(true)
-      // 在 URL 後面加上時間戳，強制瀏覽器重新請求（避免快取）
+      // 在 URL 後面加上時間戳和 action=view，強制瀏覽器重新請求（避免快取）
       const timestamp = new Date().getTime()
-      const imageUrl = `/api/download-report?t=${timestamp}`
+      const imageUrl = `/api/download-report?action=view&t=${timestamp}`
       setImageUrl(imageUrl)
     } catch (err) {
       console.error('Load image error:', err)
@@ -172,23 +172,24 @@ export default function Home() {
 
   const downloadReport = async () => {
     try {
-      if (!imageUrl) return
-      
       setDownloading(true)
-      const response = await fetch(imageUrl)
+      
+      // 直接下載 ZIP 文件（使用 action=download）
+      const timestamp = new Date().getTime()
+      const response = await fetch(`/api/download-report?action=download&t=${timestamp}`)
       
       if (!response.ok) {
         throw new Error(`下載失敗: ${response.status}`)
       }
       
-      // 獲取圖片數據
+      // 獲取 ZIP 數據
       const blob = await response.blob()
       
       // 創建下載連結
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = '情蒐報告.png'
+      a.download = '小園海斗_完整報告.zip'
       document.body.appendChild(a)
       a.click()
       

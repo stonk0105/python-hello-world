@@ -11,6 +11,8 @@ export default function Home() {
   // 球員名單快取：{ teamCode: { pitcher: string[], batter: string[] } }
   const [playersCache, setPlayersCache] = useState<Record<string, { pitcher: string[], batter: string[] }>>({})
   const [loadingPlayers, setLoadingPlayers] = useState<boolean>(false)
+  // 選中的球員：{ `${teamCode}-${role}-${playerName}`: boolean }
+  const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set())
 
   // 獲取所有球隊的完整列表（用於全選功能）
   const getAllTeams = () => {
@@ -274,38 +276,136 @@ export default function Home() {
         {/* 選擇角色 */}
         {selectedTeams.size > 0 && (
           <div className="statsinsight-role-selection" style={{ 
-            marginTop: '2rem', 
-            padding: '1.5rem', 
-            background: '#f8f9fa', 
+            marginTop: '1.5rem', 
+            padding: '1.25rem 1.5rem', 
+            background: '#ffffff', 
             borderRadius: '8px',
-            border: '2px solid #e9ecef'
+            border: '1px solid #e9ecef',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
           }}>
-            <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>選擇角色</h3>
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <span style={{ fontWeight: '500' }}>
-                {Array.from(selectedTeams).map(code => {
-                  const team = getAllTeams().find(t => t.code === code)
-                  return team?.name || code
-                }).join(', ')}
-              </span>
-              <div style={{ display: 'flex', gap: '1rem', marginLeft: 'auto' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '1rem'
+            }}>
+              <h3 style={{ 
+                margin: 0, 
+                fontSize: '1rem', 
+                fontWeight: '600',
+                color: '#333'
+              }}>
+                選擇角色
+              </h3>
+              <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+                <label style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.5rem', 
+                  cursor: 'pointer',
+                  fontSize: '0.9rem'
+                }}>
                   <input 
                     type="checkbox"
                     checked={selectedRoles.has('pitcher')}
                     onChange={() => handleRoleToggle('pitcher')}
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      cursor: 'pointer',
+                      accentColor: '#007bff'
+                    }}
                   />
-                  <span>投手</span>
+                  <span style={{ color: '#333' }}>投手</span>
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <label style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.5rem', 
+                  cursor: 'pointer',
+                  fontSize: '0.9rem'
+                }}>
                   <input 
                     type="checkbox"
                     checked={selectedRoles.has('batter')}
                     onChange={() => handleRoleToggle('batter')}
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      cursor: 'pointer',
+                      accentColor: '#007bff'
+                    }}
                   />
-                  <span>打者</span>
+                  <span style={{ color: '#333' }}>打者</span>
                 </label>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* 下載模式 */}
+        {selectedTeams.size > 0 && (
+          <div style={{ 
+            marginTop: '1.5rem', 
+            padding: '1.25rem 1.5rem', 
+            background: '#ffffff', 
+            borderRadius: '8px',
+            border: '1px solid #e9ecef',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+          }}>
+            <h3 style={{ 
+              margin: 0, 
+              marginBottom: '0.75rem',
+              fontSize: '1rem', 
+              fontWeight: '600',
+              color: '#333'
+            }}>
+              下載模式
+            </h3>
+            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+              <label style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.5rem', 
+                cursor: 'pointer',
+                fontSize: '0.9rem'
+              }}>
+                <input 
+                  type="radio"
+                  name="downloadMode"
+                  value="team"
+                  defaultChecked={false}
+                  style={{
+                    width: '16px',
+                    height: '16px',
+                    cursor: 'pointer',
+                    accentColor: '#007bff'
+                  }}
+                />
+                <span style={{ color: '#333' }}>下載整隊報告</span>
+              </label>
+              <label style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.5rem', 
+                cursor: 'pointer',
+                fontSize: '0.9rem'
+              }}>
+                <input 
+                  type="radio"
+                  name="downloadMode"
+                  value="individual"
+                  defaultChecked={true}
+                  style={{
+                    width: '16px',
+                    height: '16px',
+                    cursor: 'pointer',
+                    accentColor: '#007bff'
+                  }}
+                />
+                <span style={{ color: '#333' }}>下載個別球員報告</span>
+              </label>
             </div>
           </div>
         )}
@@ -313,14 +413,62 @@ export default function Home() {
         {/* 球員名單 */}
         {selectedTeams.size > 0 && selectedRoles.size > 0 && (
           <div className="statsinsight-players" style={{ 
-            marginTop: '2rem', 
-            padding: '1.5rem', 
-            background: '#f8f9fa', 
+            marginTop: '1.5rem', 
+            padding: '1.25rem 1.5rem', 
+            background: '#ffffff', 
             borderRadius: '8px',
-            border: '2px solid #e9ecef'
+            border: '1px solid #e9ecef',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
           }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '1.25rem',
+              paddingBottom: '0.75rem',
+              borderBottom: '1px solid #e9ecef'
+            }}>
+              <h3 style={{ 
+                margin: 0, 
+                fontSize: '1rem', 
+                fontWeight: '600',
+                color: '#333'
+              }}>
+                選擇球員
+              </h3>
+              <button
+                onClick={() => {
+                  // 重新整理名單
+                  Array.from(selectedTeams).forEach(teamCode => {
+                    Array.from(selectedRoles).forEach(role => {
+                      loadTeamPlayers(teamCode, role, true)
+                    })
+                  })
+                }}
+                style={{
+                  padding: '0.375rem 0.75rem',
+                  fontSize: '0.875rem',
+                  color: '#007bff',
+                  background: 'transparent',
+                  border: '1px solid #007bff',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#007bff'
+                  e.currentTarget.style.color = '#ffffff'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent'
+                  e.currentTarget.style.color = '#007bff'
+                }}
+              >
+                重新整理名單
+              </button>
+            </div>
             {loadingPlayers ? (
-              <p>載入中...</p>
+              <p style={{ color: '#666', textAlign: 'center', padding: '2rem 0' }}>載入中...</p>
             ) : (
               <>
                 {Array.from(selectedTeams).map(teamCode => {
@@ -333,6 +481,39 @@ export default function Home() {
                     
                     if (rolePlayers.length === 0) return null
                     
+                    const playerKey = `${teamCode}-${role}`
+                    const allSelected = rolePlayers.length > 0 && rolePlayers.every(playerName => 
+                      selectedPlayers.has(`${playerKey}-${playerName}`)
+                    )
+                    
+                    const handleSelectAll = (e: React.MouseEvent) => {
+                      e.preventDefault()
+                      const newSelected = new Set(selectedPlayers)
+                      if (allSelected) {
+                        // 取消全選
+                        rolePlayers.forEach(playerName => {
+                          newSelected.delete(`${playerKey}-${playerName}`)
+                        })
+                      } else {
+                        // 全選
+                        rolePlayers.forEach(playerName => {
+                          newSelected.add(`${playerKey}-${playerName}`)
+                        })
+                      }
+                      setSelectedPlayers(newSelected)
+                    }
+                    
+                    const handlePlayerToggle = (playerName: string) => {
+                      const playerId = `${playerKey}-${playerName}`
+                      const newSelected = new Set(selectedPlayers)
+                      if (newSelected.has(playerId)) {
+                        newSelected.delete(playerId)
+                      } else {
+                        newSelected.add(playerId)
+                      }
+                      setSelectedPlayers(newSelected)
+                    }
+                    
                     return (
                       <div key={`${teamCode}-${role}`} style={{ marginBottom: '2rem' }}>
                         <div style={{ 
@@ -341,53 +522,114 @@ export default function Home() {
                           alignItems: 'center',
                           marginBottom: '1rem'
                         }}>
-                          <h3 style={{ fontSize: '1.1rem', margin: 0 }}>
+                          <h4 style={{ 
+                            fontSize: '0.95rem', 
+                            margin: 0, 
+                            fontWeight: '600', 
+                            color: '#333'
+                          }}>
                             {teamCode} - {roleText}
-                          </h3>
-                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          </h4>
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                             <a 
                               href="#" 
-                              onClick={(e) => {
-                                e.preventDefault()
-                                // TODO: 實現全選功能
+                              onClick={handleSelectAll}
+                              style={{ 
+                                fontSize: '0.875rem', 
+                                color: '#007bff',
+                                textDecoration: 'none',
+                                cursor: 'pointer'
                               }}
-                              style={{ fontSize: '0.875rem', color: '#007bff' }}
+                              onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                              onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
                             >
                               全選
                             </a>
-                            <span> / </span>
+                            <span style={{ color: '#ccc' }}> / </span>
                             <a 
                               href="#" 
-                              onClick={(e) => {
-                                e.preventDefault()
-                                // TODO: 實現取消全選功能
+                              onClick={handleSelectAll}
+                              style={{ 
+                                fontSize: '0.875rem', 
+                                color: '#007bff',
+                                textDecoration: 'none',
+                                cursor: 'pointer'
                               }}
-                              style={{ fontSize: '0.875rem', color: '#007bff' }}
+                              onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                              onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
                             >
                               取消全選
                             </a>
                           </div>
                         </div>
-                        <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                          <ul style={{ 
-                            listStyle: 'none', 
-                            padding: 0, 
-                            margin: 0,
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-                            gap: '0.5rem'
+                        <div style={{ 
+                          maxHeight: '400px', 
+                          overflowY: 'auto',
+                          padding: '0.75rem 0'
+                        }}>
+                          <div style={{ 
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '0.625rem'
                           }}>
-                            {rolePlayers.map((playerName, index) => (
-                              <li key={index} style={{ 
-                                padding: '0.5rem',
-                                background: 'white',
-                                borderRadius: '4px',
-                                border: '1px solid #e9ecef'
-                              }}>
-                                {playerName}
-                              </li>
-                            ))}
-                          </ul>
+                            {rolePlayers.map((playerName, index) => {
+                              const playerId = `${playerKey}-${playerName}`
+                              const isSelected = selectedPlayers.has(playerId)
+                              
+                              return (
+                                <label
+                                  key={index}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    padding: '0.5rem 0.875rem',
+                                    background: isSelected ? '#f0f7ff' : '#ffffff',
+                                    borderRadius: '4px',
+                                    border: `1px solid ${isSelected ? '#007bff' : '#dee2e6'}`,
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
+                                    fontSize: '0.875rem',
+                                    lineHeight: '1.4',
+                                    userSelect: 'none',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (!isSelected) {
+                                      e.currentTarget.style.borderColor = '#007bff'
+                                      e.currentTarget.style.background = '#f8f9fa'
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!isSelected) {
+                                      e.currentTarget.style.borderColor = '#dee2e6'
+                                      e.currentTarget.style.background = '#ffffff'
+                                    }
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => handlePlayerToggle(playerName)}
+                                    style={{
+                                      width: '16px',
+                                      height: '16px',
+                                      cursor: 'pointer',
+                                      accentColor: '#007bff',
+                                      flexShrink: 0
+                                    }}
+                                  />
+                                  <span style={{ 
+                                    color: '#333',
+                                    fontWeight: isSelected ? '500' : '400',
+                                    fontSize: '0.875rem'
+                                  }}>
+                                    {playerName}
+                                  </span>
+                                </label>
+                              )
+                            })}
+                          </div>
                         </div>
                       </div>
                     )
@@ -406,17 +648,45 @@ export default function Home() {
         )}
 
         {/* View/Download Button */}
-        <div className="statsinsight-download">
+        <div className="statsinsight-download" style={{ 
+          marginTop: '2rem',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}>
           {!imageUrl ? (
             <button 
               onClick={viewReport}
               disabled={loading}
-              className="download-report-button"
+              style={{
+                padding: '0.75rem 2rem',
+                fontSize: '1rem',
+                fontWeight: '600',
+                color: '#ffffff',
+                background: loading ? '#6c757d' : '#28a745',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.background = '#218838'
+                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)'
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.background = '#28a745'
+                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)'
+                }
+              }}
             >
               {loading ? '載入中...' : '查看'}
             </button>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center', width: '100%' }}>
               <img 
                 src={imageUrl} 
                 alt="情蒐報告" 
@@ -424,15 +694,37 @@ export default function Home() {
                   maxWidth: '100%', 
                   height: 'auto',
                   borderRadius: '8px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  marginBottom: '1rem'
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                 }}
               />
               <button 
                 onClick={downloadReport}
                 disabled={downloading}
-                className="download-report-button"
-                style={{ width: '200px' }}
+                style={{
+                  padding: '0.75rem 2rem',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  color: '#ffffff',
+                  background: downloading ? '#6c757d' : '#28a745',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: downloading ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  minWidth: '200px'
+                }}
+                onMouseEnter={(e) => {
+                  if (!downloading) {
+                    e.currentTarget.style.background = '#218838'
+                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!downloading) {
+                    e.currentTarget.style.background = '#28a745'
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)'
+                  }
+                }}
               >
                 {downloading ? '下載中...' : '下載報告'}
               </button>

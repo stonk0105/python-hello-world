@@ -1,26 +1,83 @@
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fexamples%2Ftree%2Fmain%2Fpython%2Fhello-world&demo-title=Python%20Hello%20World&demo-description=Use%20Python%20on%20Vercel%20with%20Serverless%20Functions%20using%20the%20Python%20Runtime.&demo-url=https%3A%2F%2Fpython-hello-world.vercel.app%2F&demo-image=https://assets.vercel.com/image/upload/v1669994600/random/python.png)
+# Python Hello World with Next.js
 
-# Python Hello World
+這個專案展示了如何在 Vercel 上整合 Next.js 前端與 Python Serverless Function 後端。
 
-This example shows how to use Python on Vercel with Serverless Functions using the [Python Runtime](https://vercel.com/docs/concepts/functions/serverless-functions/runtimes/python).
+## 架構
 
-## Demo
+- **前端**：Next.js 13+ App Router (TypeScript)
+- **後端**：Python Serverless Function (`/api/index.py`)
 
-https://python-hello-world.vercel.app/
+## 功能
 
-## Running Locally
+- Next.js 前端頁面調用 Python API
+- 顯示 API 回應的 "Hello, world!" 訊息
+- 錯誤處理和載入狀態
+- 響應式設計
+
+## 本地開發
+
+### 使用 Next.js 開發伺服器（推薦）
 
 ```bash
+# 安裝依賴
+npm install
+
+# 啟動開發伺服器
+npm run dev
+```
+
+前端將在 `http://localhost:3000` 運行，Python API 可以通過 `http://localhost:3000/api` 訪問。
+
+### 使用 Vercel CLI（完整測試）
+
+```bash
+# 安裝 Vercel CLI
 npm i -g vercel
+
+# 啟動 Vercel 開發環境（包含 Serverless Functions）
 vercel dev
 ```
 
-Your Python API is now available at `http://localhost:3000/api`.
+這將同時運行 Next.js 前端和 Python Serverless Functions。
 
-## One-Click Deploy
+## 專案結構
 
-Deploy the example using [Vercel](https://vercel.com?utm_source=github&utm_medium=readme&utm_campaign=vercel-examples):
+```
+python-hello-world/
+├── app/                    # Next.js App Router
+│   ├── layout.tsx         # 根佈局
+│   ├── page.tsx           # 主頁面
+│   └── globals.css        # 全域樣式
+├── api/                    # Python Serverless Functions
+│   └── index.py           # Python API 端點
+├── package.json           # Node.js 依賴
+├── next.config.js         # Next.js 配置
+├── tsconfig.json          # TypeScript 配置
+└── vercel.json            # Vercel 配置
+```
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fexamples%2Ftree%2Fmain%2Fpython%2Fhello-world&demo-title=Python%20Hello%20World&demo-description=Use%20Python%20on%20Vercel%20with%20Serverless%20Functions%20using%20the%20Python%20Runtime.&demo-url=https%3A%2F%2Fpython-hello-world.vercel.app%2F&demo-image=https://assets.vercel.com/image/upload/v1669994600/random/python.png)
+## 部署
 
-test
+### 部署到 Vercel
+
+1. 將專案推送到 GitHub
+2. 在 [Vercel](https://vercel.com) 中導入專案
+3. Vercel 會自動偵測 Next.js 和 Python 配置並部署
+
+或者使用 Vercel CLI：
+
+```bash
+vercel
+```
+
+## API 端點
+
+- **GET /api** - 返回 "Hello, world!" 訊息（Python Serverless Function）
+
+## 技術棧
+
+- [Next.js 14](https://nextjs.org/) - React 框架
+- [React 18](https://react.dev/) - UI 庫
+- [TypeScript](https://www.typescriptlang.org/) - 類型安全
+- [Python 3.9](https://www.python.org/) - 後端 API
+- [Vercel](https://vercel.com/) - 部署平台

@@ -26,10 +26,13 @@ class handler(BaseHTTPRequestHandler):
                 image_data = f.read()
             
             # 設置響應頭，顯示圖片（不設置下載）
+            # 使用 no-cache 確保每次都是最新圖片，避免瀏覽器快取舊版本
             self.send_response(200)
             self.send_header('Content-type','image/png')
             self.send_header('Content-Length', str(len(image_data)))
-            self.send_header('Cache-Control', 'public, max-age=3600')
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
             self.end_headers()
             
             # 發送圖片數據

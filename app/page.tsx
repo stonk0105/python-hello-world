@@ -40,8 +40,9 @@ export default function Home() {
   const viewReport = async () => {
     try {
       setLoading(true)
-      // 直接使用圖片 URL，讓瀏覽器顯示圖片
-      const imageUrl = '/api/download-report'
+      // 在 URL 後面加上時間戳，強制瀏覽器重新請求（避免快取）
+      const timestamp = new Date().getTime()
+      const imageUrl = `/api/download-report?t=${timestamp}`
       setImageUrl(imageUrl)
     } catch (err) {
       console.error('Load image error:', err)

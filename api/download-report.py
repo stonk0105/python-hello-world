@@ -30,8 +30,11 @@ except ImportError as e:
 try:
     sys.path.insert(0, os.path.join(project_root, 'Label_Data'))
     from Toolbox import *
+    # 確保 AVG 函數被導入
+    from Toolbox import AVG, RISPAVG, GB_FB
 except ImportError as e:
     print(f"Warning: Could not import Toolbox: {e}")
+    AVG = None
     RISPAVG = None
     GB_FB = None
 
@@ -371,12 +374,18 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
         height_weight = f"{int(df_player_stat.at[0, '身高'])}cm {int(df_player_stat.at[0, '體重'])}kg"
         I1.text((210, 150), height_weight, fill=(255, 255, 255), font=ImageFont.truetype(font_path, 14) if os.path.exists(font_path) else font)
     
-    if df_player_stat.at[0, 'AVG'].isna():
-        df_player_stat.at[0, 'AVG'] = AVG(df_player_each_PA)
-    if df_player_stat.at[0, 'AVG_RHB'].isna():
-        df_player_stat.at[0, 'AVG_RHB'] = AVG(df_player_each_PA[df_player_each_PA['BatS'] == 0])
-    if df_player_stat.at[0, 'AVG_LHB'].isna():
-        df_player_stat.at[0, 'AVG_LHB'] = AVG(df_player_each_PA[df_player_each_PA['BatS'] == 1])
+    # 如果 AVG 相關欄位為空，則從 cache_balls_stat 計算
+    if AVG is not None and len(df_player_each_PA) > 0:
+        if 'AVG' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'AVG']):
+            df_player_stat.at[0, 'AVG'] = AVG(df_player_each_PA)
+        if 'AVG_RHB' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'AVG_RHB']):
+            df_player_RHB = df_player_each_PA[df_player_each_PA['BatS'] == 0].reset_index(drop=True)
+            if len(df_player_RHB) > 0:
+                df_player_stat.at[0, 'AVG_RHB'] = AVG(df_player_RHB)
+        if 'AVG_LHB' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'AVG_LHB']):
+            df_player_LHB = df_player_each_PA[df_player_each_PA['BatS'] == 1].reset_index(drop=True)
+            if len(df_player_LHB) > 0:
+                df_player_stat.at[0, 'AVG_LHB'] = AVG(df_player_LHB)
     
     # K% 區塊 - 對照資料表欄位名稱
     # 資料表欄位：K百分比, BB百分比, WHIP, AVG, AVG_RHB, AVG_LHB
@@ -449,7 +458,7 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
     if RISPAVG and GB_FB and len(df_player_each_PA) > 0:
         得點圈 = RISPAVG(df_player_each_PA)
         滾飛比 = GB_FB(df_player_each_PA)
-        I1.text((328, 235), str(滾飛比), fill=(0, 0, 0), nt=statistic_font)
+        I1.text((328, 235), str(滾飛比), fill=(0, 0, 0), font=statistic_font)
         I1.text((380, 235), str(得點圈), fill=(0, 0, 0), font=statistic_font)
     
     # 時間區塊

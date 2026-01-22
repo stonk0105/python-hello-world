@@ -26,6 +26,23 @@ except ImportError as e:
     print(f"Warning: Could not import p12_func or func: {e}")
     p12_func = None
 
+# 導入 Toolbox 模組
+try:
+    sys.path.insert(0, os.path.join(project_root, 'Label_Data'))
+    from Toolbox import RISPAVG, GB_FB
+except ImportError as e:
+    print(f"Warning: Could not import Toolbox: {e}")
+    RISPAVG = None
+    GB_FB = None
+
+# 資料庫緩存（避免重複查詢）
+_db_cache = {
+    'Stonk_batter': None,
+    'Stonk_pitcher': None,
+    'cache_balls_stat': None,
+    'cache_balls_stat_pa': None
+}
+
 def generate_batter_page1(batter_name='小園海斗', country='日本', df_all_players=None):
     """生成打者報告第一頁"""
     project_root = os.path.dirname(os.path.dirname(__file__))
@@ -284,6 +301,238 @@ def generate_batter_page2(batter_name='小園海斗', country='日本'):
     img_buffer.seek(0)
     return img_buffer.getvalue()
 
+def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all_pitchers=None, df_cache_balls_stat=None, df_cache_balls_stat_pa=None):
+    """生成投手報告第一頁"""
+    project_root = os.path.dirname(os.path.dirname(__file__))
+    
+    # 讀取底圖
+    base_image_path = os.path.join(project_root, 'Label_Data', 'Pitcher1.png')
+    if not os.path.exists(base_image_path):
+        raise FileNotFoundError(f'Pitcher1.png not found at: {base_image_path}')
+    
+    im = Image.open(base_image_path)
+    I1 = ImageDraw.Draw(im)
+    
+    # 載入字體
+    font_path = os.path.join(project_root, 'Label_Data', 'msjhbd.ttc')
+    statistic_font_path = os.path.join(project_root, 'Label_Data', 'msjh.ttc')
+    
+    try:
+        font = ImageFont.truetype(font_path, 35)
+        statistic_font = ImageFont.truetype(statistic_font_path, 13)
+    except:
+        font = ImageFont.load_default()
+        statistic_font = ImageFont.load_default()
+    
+    # 從傳入的資料或資料庫獲取投手資料
+    if df_all_pitchers is not None:
+        df_player_stat = df_all_pitchers[df_all_pitchers['球員'] == pitcher_name].reset_index(drop=True)
+    else:
+        engine = create_engine(
+            "mysql+pymysql://cloudeep:iEEsgOxVpU4RIGMo@database-test.c4zrhmao4pj4.ap-northeast-1.rds.amazonaws.com:38064/test_ERP_Modules"
+        )
+        with engine.connect() as conn:
+            from sqlalchemy import text
+            query = text("SELECT * FROM Stonk_pitcher WHERE 球員 = :player_name LIMIT 1")
+            df_player_stat = pd.read_sql(query, conn, params={'player_name': pitcher_name})
+    
+    if len(df_player_stat) == 0:
+        raise ValueError(f'找不到投手: {pitcher_name}')
+    
+    # 球員名稱
+    player_name_chinese = pitcher_name
+    player_name_eng = ''
+    
+    I1.text((30, 40), player_name_chinese, fill=(0, 0, 0), font=font)
+    if player_name_eng:
+        I1.text((30, 80), player_name_eng, fill=(0, 0, 0), font=font)
+    
+    # 基本資料
+    if not pd.isna(df_player_stat.at[0, '年紀']):
+        age = f"{int(df_player_stat.at[0, '年紀'])}歲"
+        I1.text((210, 130), age, fill=(255, 255, 255), font=ImageFont.truetype(font_path, 14) if os.path.exists(font_path) else font)
+    
+    if not pd.isna(df_player_stat.at[0, '身高']) and not pd.isna(df_player_stat.at[0, '體重']):
+        height_weight = f"{int(df_player_stat.at[0, '身高'])}cm {int(df_player_stat.at[0, '體重'])}kg"
+        I1.text((210, 150), height_weight, fill=(255, 255, 255), font=ImageFont.truetype(font_path, 14) if os.path.exists(font_path) else font)
+    
+    # K% 區塊
+    K_P_list = ["K%", "BB%", "WHIP", "AVG", "AVG_RHB", "AVG_LHB"]
+    for i in range(len(K_P_list)):
+        column = K_P_list[i]
+        if column not in df_player_stat.columns:
+            continue
+        statistic_value = df_player_stat.at[0, column]
+        if pd.isna(statistic_value):
+            continue
+        
+        if column == "WHIP":
+            display_value = f"{float(statistic_value):.2f}"
+        else:
+            display_value = str(statistic_value)
+        
+        if i < 3:
+            I1.text((22 + 47 * i, 235), display_value, fill=(0, 0, 0), font=statistic_font)
+        else:
+            I1.text((22 + 46 * (i - 3), 280), display_value, fill=(0, 0, 0), font=statistic_font)
+    
+    # ERA 區塊
+    ERA_list = ["ERA", 'IP', 'W-L', 'G/SP', 'H', '中繼', '後援', 'SO', 'BB', 'K/9', 'BB/9']
+    for i in range(len(ERA_list)):
+        column = ERA_list[i]
+        if column not in df_player_stat.columns:
+            continue
+        statistic_value = df_player_stat.at[0, column]
+        if pd.isna(statistic_value):
+            continue
+        
+        if i < 2:
+            I1.text((165 + 37 * i, 195), str(statistic_value), fill=(0, 0, 0), font=statistic_font)
+        elif 2 <= i < 4:
+            I1.text((168 + 37 * i, 195), str(statistic_value), fill=(0, 0, 0), font=statistic_font)
+        elif 4 <= i < 7:
+            I1.text((288 + 40 * (i - 3), 195), str(statistic_value), fill=(0, 0, 0), font=statistic_font)
+        elif 7 <= i < 9:
+            I1.text((170 + 42 * (i - 7), 235), str(statistic_value), fill=(0, 0, 0), font=statistic_font)
+        elif 9 <= i < 11:
+            I1.text((160 + 42 * (i - 7), 235), str(statistic_value), fill=(0, 0, 0), font=statistic_font)
+    
+    # 滾飛比 / 得點圈
+    if df_cache_balls_stat_pa is not None:
+        df_player_each_PA = df_cache_balls_stat_pa[df_cache_balls_stat_pa['Pitcher'] == pitcher_name].reset_index(drop=True)
+    else:
+        engine = create_engine(
+            "mysql+pymysql://cloudeep:iEEsgOxVpU4RIGMo@database-test.c4zrhmao4pj4.ap-northeast-1.rds.amazonaws.com:38064/test_ERP_Modules"
+        )
+        with engine.connect() as conn:
+            from sqlalchemy import text
+            query = text("""
+                SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
+                FROM cache_balls_stat
+                WHERE PA_Result IS NOT NULL AND PA_Result != '' AND Pitcher = :pitcher_name
+            """)
+            df_player_each_PA = pd.read_sql(query, conn, params={'pitcher_name': pitcher_name})
+    
+    if RISPAVG and GB_FB and len(df_player_each_PA) > 0:
+        得點圈 = RISPAVG(df_player_each_PA)
+        滾飛比 = GB_FB(df_player_each_PA)
+        I1.text((328, 235), str(滾飛比), fill=(0, 0, 0), font=statistic_font)
+        I1.text((380, 235), str(得點圈), fill=(0, 0, 0), font=statistic_font)
+    
+    # 時間區塊
+    time_list = ['快投時間', '牽制一壘']
+    for i in range(len(time_list)):
+        column = time_list[i]
+        if column not in df_player_stat.columns:
+            continue
+        statistic_value = df_player_stat.at[0, column]
+        if pd.isna(statistic_value):
+            continue
+        I1.text((160 + 80 * i, 280), str(statistic_value), fill=(0, 0, 0), font=statistic_font)
+    
+    # 右下角球速表格
+    if df_cache_balls_stat is not None:
+        df_player = df_cache_balls_stat[df_cache_balls_stat['Pitcher'] == pitcher_name].reset_index(drop=True)
+    else:
+        engine = create_engine(
+            "mysql+pymysql://cloudeep:iEEsgOxVpU4RIGMo@database-test.c4zrhmao4pj4.ap-northeast-1.rds.amazonaws.com:38064/test_ERP_Modules"
+        )
+        with engine.connect() as conn:
+            from sqlalchemy import text
+            query = text("""
+                SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
+                FROM cache_balls_stat
+                WHERE PitchCode IN ('Strk-C','Strk-S','Ball','Foul','In-Play','Inplay','IBB','Ball-B-I','Ball-Ill-Pi','Strk-PN','Ball-PN')
+                AND Pitcher = :pitcher_name
+            """)
+            df_player = pd.read_sql(query, conn, params={'pitcher_name': pitcher_name})
+    
+    if len(df_player) > 0:
+        # 處理數據類型
+        df_player['APP_KZoneY'] = pd.to_numeric(df_player['APP_KZoneY'], errors='coerce')
+        df_player['APP_KZoneZ'] = pd.to_numeric(df_player['APP_KZoneZ'], errors='coerce')
+        df_player['APP_VeloRel'] = pd.to_numeric(df_player['APP_VeloRel'], errors='coerce')
+        df_player = df_player.dropna(subset=['APP_KZoneY', 'APP_KZoneZ']).reset_index(drop=True)
+        df_player = df_player[~df_player['TaggedPitchType'].isin(['?', '', 'OT'])].reset_index(drop=True)
+        
+        taggedpitchtype_dict = {"FB": "速球", "FT": "伸卡", "SL": "滑球", "CT": "卡特", "CB": "曲球", "CH": "變速", "SP": "指叉", "SFF": '快叉'}
+        
+        # 計算每個球路出現的次數
+        pitchtype_counts = df_player['TaggedPitchType'].value_counts().to_dict()
+        taggedpitchtype_list = sorted(pitchtype_counts, key=pitchtype_counts.get, reverse=True)
+        taggedpitchtype_list = taggedpitchtype_list if len(taggedpitchtype_list) <= 5 else taggedpitchtype_list[:5]
+        
+        for i in range(len(taggedpitchtype_list)):
+            taggedpitchtype = taggedpitchtype_list[i]
+            if taggedpitchtype == "?":
+                continue
+            
+            pitch_type = taggedpitchtype_dict.get(taggedpitchtype, taggedpitchtype)
+            df_player_R = df_player[df_player['BatS'] == 0]
+            df_player_L = df_player[df_player['BatS'] == 1]
+            
+            df_player_taggedpitchtype = df_player[df_player['TaggedPitchType'] == taggedpitchtype].reset_index(drop=True)
+            df_player_taggedpitchtype_R = df_player[(df_player['TaggedPitchType'] == taggedpitchtype) & (df_player['BatS'] == 0)].reset_index(drop=True)
+            df_player_taggedpitchtype_L = df_player[(df_player['TaggedPitchType'] == taggedpitchtype) & (df_player['BatS'] == 1)].reset_index(drop=True)
+            
+            speed = round(df_player_taggedpitchtype['APP_VeloRel'].mean(), 1) if len(df_player_taggedpitchtype) > 0 else None
+            Max_speed = round(df_player_taggedpitchtype['APP_VeloRel'].max(), 1) if len(df_player_taggedpitchtype) > 0 else None
+            
+            try:
+                total_usage = f"{round(len(df_player_taggedpitchtype_R) / len(df_player_R) * 100, 1) if len(df_player_R) > 0 else 0} / {round(len(df_player_taggedpitchtype_L) / len(df_player_L) * 100, 1) if len(df_player_L) > 0 else 0}"
+            except:
+                total_usage = "--- / ---"
+            
+            try:
+                first_pitch_usage = f"{round(len(df_player_taggedpitchtype_R[df_player_taggedpitchtype_R['BS'] == '0-0']) / len(df_player_R[df_player_R['BS'] == '0-0']) * 100, 1) if len(df_player_R[df_player_R['BS'] == '0-0']) > 0 else 0} / {round(len(df_player_taggedpitchtype_L[df_player_taggedpitchtype_L['BS'] == '0-0']) / len(df_player_L[df_player_L['BS'] == '0-0']) * 100, 1) if len(df_player_L[df_player_L['BS'] == '0-0']) > 0 else 0}"
+            except:
+                first_pitch_usage = "--- / ---"
+            
+            try:
+                R_2 = round(len(df_player_taggedpitchtype_R[df_player_taggedpitchtype_R['BS'] == '2-2']) / len(df_player_R[df_player_R['BS'] == '2-2']) * 100, 1) if len(df_player_R[df_player_R['BS'] == '2-2']) > 0 else 0
+            except:
+                R_2 = '---'
+            
+            try:
+                L_2 = round(len(df_player_taggedpitchtype_L[df_player_taggedpitchtype_L['BS'] == '2-2']) / len(df_player_L[df_player_L['BS'] == '2-2']) * 100, 1) if len(df_player_L[df_player_L['BS'] == '2-2']) > 0 else 0
+            except:
+                L_2 = '---'
+            
+            twotwo_usage = f"{R_2} / {L_2}"
+            
+            batter_ahead_count = ['1-0', '2-0', '2-1', '3-0', '3-1']
+            try:
+                batter_ahead_usage = f"{round(len(df_player_taggedpitchtype_R[df_player_taggedpitchtype_R['BS'].isin(batter_ahead_count)]) / len(df_player_R[df_player_R['BS'].isin(batter_ahead_count)]) * 100, 1) if len(df_player_R[df_player_R['BS'].isin(batter_ahead_count)]) > 0 else 0} / {round(len(df_player_taggedpitchtype_L[df_player_taggedpitchtype_L['BS'].isin(batter_ahead_count)]) / len(df_player_L[df_player_L['BS'].isin(batter_ahead_count)]) * 100, 1) if len(df_player_L[df_player_L['BS'].isin(batter_ahead_count)]) > 0 else 0}"
+            except:
+                batter_ahead_usage = "--- / ---"
+            
+            if len(df_player_taggedpitchtype[df_player_taggedpitchtype['Zone'].isin([0])]) > 0:
+                strike_chase_percentage = f"{round(len(df_player_taggedpitchtype[df_player_taggedpitchtype['PitchCode'].isin(['Strk-C', 'Strk-S', 'Foul', 'In-Play'])]) / len(df_player_taggedpitchtype) * 100, 1)} / {round(len(df_player_taggedpitchtype[(df_player_taggedpitchtype['PitchCode'].isin(['Strk-S', 'Foul', 'In-Play'])) & (df_player_taggedpitchtype['Zone'] == 0)]) / len(df_player_taggedpitchtype[df_player_taggedpitchtype['Zone'].isin([0])]) * 100, 1)}"
+            else:
+                strike_chase_percentage = f"{round(len(df_player_taggedpitchtype[df_player_taggedpitchtype['PitchCode'].isin(['Strk-C', 'Strk-S', 'Foul', 'In-Play'])]) / len(df_player_taggedpitchtype) * 100, 1) if len(df_player_taggedpitchtype) > 0 else 0} / ---"
+            
+            I1.text((572 + 98 * i, 435), pitch_type, fill=(0, 0, 0), font=statistic_font)
+            
+            if not pd.isna(speed) and not pd.isna(Max_speed):
+                I1.text((545 + 98 * i, 460), str(speed) + ' / ' + str(Max_speed), fill=(0, 0, 0), font=statistic_font)
+            
+            if 'nan' not in str(total_usage).lower():
+                I1.text((552 + 98 * i, 505), total_usage, fill=(0, 0, 0), font=statistic_font)
+            if 'nan' not in str(first_pitch_usage).lower():
+                I1.text((552 + 98 * i, 540), first_pitch_usage, fill=(0, 0, 0), font=statistic_font)
+            if 'nan' not in str(twotwo_usage).lower():
+                I1.text((552 + 98 * i, 575), twotwo_usage, fill=(0, 0, 0), font=statistic_font)
+            if 'nan' not in str(batter_ahead_usage).lower():
+                I1.text((552 + 98 * i, 610), batter_ahead_usage, fill=(0, 0, 0), font=statistic_font)
+            if 'nan' not in str(strike_chase_percentage).lower():
+                I1.text((552 + 98 * i, 640), strike_chase_percentage, fill=(0, 0, 0), font=statistic_font)
+    
+    # 保存到內存
+    img_buffer = io.BytesIO()
+    im.save(img_buffer, format='PNG')
+    img_buffer.seek(0)
+    return img_buffer.getvalue()
+
 class handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
@@ -298,8 +547,10 @@ class handler(BaseHTTPRequestHandler):
             action = query_params.get('action', ['download'])[0]  # 'view' 或 'download'
             page = query_params.get('page', ['1'])[0]  # '1' 或 '2'
             
-            # 獲取球員列表（如果有的話）
+            # 獲取球員列表和角色（如果有的話）
             players_param = query_params.get('players', [])
+            role_param = query_params.get('role', ['batter'])[0]  # 'pitcher' 或 'batter'
+            
             if players_param:
                 # 解析 JSON 格式的球員列表
                 try:
@@ -309,27 +560,76 @@ class handler(BaseHTTPRequestHandler):
             else:
                 players_list = ['小園海斗']  # 默認球員
             
-            # 如果有多個球員，生成 ZIP 文件
-            if len(players_list) > 1:
-                # 優化：一次查詢所有球員的資料
-                engine = create_engine(
-                    "mysql+pymysql://cloudeep:iEEsgOxVpU4RIGMo@database-test.c4zrhmao4pj4.ap-northeast-1.rds.amazonaws.com:38064/test_ERP_Modules"
-                )
+            # 資料庫緩存：一次查詢所有需要的資料
+            engine = create_engine(
+                "mysql+pymysql://cloudeep:iEEsgOxVpU4RIGMo@database-test.c4zrhmao4pj4.ap-northeast-1.rds.amazonaws.com:38064/test_ERP_Modules"
+            )
+            
+            # 根據角色選擇資料表
+            if role_param == 'pitcher':
+                table_name = 'Stonk_pitcher'
+                # 查詢投手基本資料
                 with engine.connect() as conn:
                     from sqlalchemy import text
-                    # 使用 IN 查詢一次獲取所有球員資料
                     placeholders = ','.join([f':player_{i}' for i in range(len(players_list))])
-                    query = text(f"SELECT * FROM Stonk_batter WHERE 球員 IN ({placeholders})")
+                    query = text(f"SELECT * FROM {table_name} WHERE 球員 IN ({placeholders})")
                     params = {f'player_{i}': player for i, player in enumerate(players_list)}
                     df_all_players = pd.read_sql(query, conn, params=params)
                 
+                # 查詢 cache_balls_stat（所有投手共用）
+                with engine.connect() as conn:
+                    from sqlalchemy import text
+                    placeholders = ','.join([f':player_{i}' for i in range(len(players_list))])
+                    query = text(f"""
+                        SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
+                        FROM cache_balls_stat
+                        WHERE PitchCode IN ('Strk-C','Strk-S','Ball','Foul','In-Play','Inplay','IBB','Ball-B-I','Ball-Ill-Pi','Strk-PN','Ball-PN')
+                        AND Pitcher IN ({placeholders})
+                    """)
+                    params = {f'player_{i}': player for i, player in enumerate(players_list)}
+                    df_cache_balls_stat = pd.read_sql(query, conn, params=params)
+                    df_cache_balls_stat['APP_KZoneY'] = pd.to_numeric(df_cache_balls_stat['APP_KZoneY'], errors='coerce')
+                    df_cache_balls_stat['APP_KZoneZ'] = pd.to_numeric(df_cache_balls_stat['APP_KZoneZ'], errors='coerce')
+                    df_cache_balls_stat['APP_VeloRel'] = pd.to_numeric(df_cache_balls_stat['APP_VeloRel'], errors='coerce')
+                    df_cache_balls_stat = df_cache_balls_stat.dropna(subset=['APP_KZoneY', 'APP_KZoneZ']).reset_index(drop=True)
+                    df_cache_balls_stat = df_cache_balls_stat[~df_cache_balls_stat['TaggedPitchType'].isin(['?', '', 'OT'])].reset_index(drop=True)
+                
+                # 查詢 cache_balls_stat_pa（所有投手共用）
+                with engine.connect() as conn:
+                    from sqlalchemy import text
+                    placeholders = ','.join([f':player_{i}' for i in range(len(players_list))])
+                    query = text(f"""
+                        SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
+                        FROM cache_balls_stat
+                        WHERE PA_Result IS NOT NULL AND PA_Result != ''
+                        AND Pitcher IN ({placeholders})
+                    """)
+                    params = {f'player_{i}': player for i, player in enumerate(players_list)}
+                    df_cache_balls_stat_pa = pd.read_sql(query, conn, params=params)
+            else:
+                # 打者
+                table_name = 'Stonk_batter'
+                with engine.connect() as conn:
+                    from sqlalchemy import text
+                    placeholders = ','.join([f':player_{i}' for i in range(len(players_list))])
+                    query = text(f"SELECT * FROM {table_name} WHERE 球員 IN ({placeholders})")
+                    params = {f'player_{i}': player for i, player in enumerate(players_list)}
+                    df_all_players = pd.read_sql(query, conn, params=params)
+                df_cache_balls_stat = None
+                df_cache_balls_stat_pa = None
+            
+            # 如果有多個球員，生成 ZIP 文件
+            if len(players_list) > 1:
                 # 生成所有球員的圖片並打包成 ZIP
                 zip_buffer = io.BytesIO()
                 with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
                     for player_name in players_list:
                         try:
-                            # 使用已查詢的資料生成圖片
-                            image_data = generate_batter_page1(player_name, '日本', df_all_players)
+                            # 根據角色生成不同的報告
+                            if role_param == 'pitcher':
+                                image_data = generate_pitcher_page1(player_name, '日本', df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
+                            else:
+                                image_data = generate_batter_page1(player_name, '日本', df_all_players)
                             filename = f'{player_name}_完整報告p1.png'
                             zip_file.writestr(filename, image_data)
                         except Exception as e:
@@ -345,7 +645,8 @@ class handler(BaseHTTPRequestHandler):
                 self.send_header('Content-type', 'application/zip')
                 # 只有在 download 模式才添加下載頭
                 if action == 'download':
-                    self.send_header('Content-Disposition', 'attachment; filename="打者報告.zip"')
+                    role_name = '投手' if role_param == 'pitcher' else '打者'
+                    self.send_header('Content-Disposition', f'attachment; filename="{role_name}報告.zip"')
                 self.send_header('Content-Length', str(len(zip_data)))
                 self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
                 self.send_header('Pragma', 'no-cache')
@@ -354,11 +655,16 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(zip_data)
             else:
                 # 單個球員，返回單張圖片（用於查看）
-                if action == 'view' and page == '2':
-                    image_data = generate_batter_page2(players_list[0], '日本')
+                if role_param == 'pitcher':
+                    # 投手目前只有 Page 1
+                    image_data = generate_pitcher_page1(players_list[0], '日本', df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
                 else:
-                    # 默認返回 Page1
-                    image_data = generate_batter_page1(players_list[0], '日本')
+                    # 打者
+                    if action == 'view' and page == '2':
+                        image_data = generate_batter_page2(players_list[0], '日本')
+                    else:
+                        # 默認返回 Page1
+                        image_data = generate_batter_page1(players_list[0], '日本', df_all_players)
                 
                 # 設置響應頭
                 self.send_response(200)

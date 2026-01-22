@@ -15,11 +15,18 @@ export default function Home() {
   // 選中的球員：{ `${teamCode}-${role}-${playerName}`: boolean }
   const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set())
 
-  // 計算選中的打者數量
+  // 計算選中的球員數量（打者和投手）
   const selectedBatterCount = Array.from(selectedPlayers).filter(playerId => {
     const parts = playerId.split('-')
     return parts.length >= 3 && parts[1] === 'batter'
   }).length
+  
+  const selectedPitcherCount = Array.from(selectedPlayers).filter(playerId => {
+    const parts = playerId.split('-')
+    return parts.length >= 3 && parts[1] === 'pitcher'
+  }).length
+  
+  const totalSelectedCount = selectedBatterCount + selectedPitcherCount
 
   // 獲取所有球隊的完整列表（用於全選功能）
   const getAllTeams = () => {
@@ -164,81 +171,98 @@ export default function Home() {
 
   const viewReport = async () => {
     try {
-      // 收集選中的球員
-      const selectedPlayerList: string[] = []
+      // 收集選中的球員，按角色分組
+      const selectedBatters: string[] = []
+      const selectedPitchers: string[] = []
+      
       Array.from(selectedPlayers).forEach(playerId => {
         // playerId 格式: `${teamCode}-${role}-${playerName}`
         const parts = playerId.split('-')
         if (parts.length >= 3) {
           const playerName = parts.slice(2).join('-') // 處理球員名稱中可能包含 '-' 的情況
           const role = parts[1]
-          // 只處理打者（batter）
           if (role === 'batter') {
-            selectedPlayerList.push(playerName)
+            selectedBatters.push(playerName)
+          } else if (role === 'pitcher') {
+            selectedPitchers.push(playerName)
           }
         }
       })
       
-      if (selectedPlayerList.length === 0) {
-        alert('請至少選擇一個打者')
+      if (selectedBatters.length === 0 && selectedPitchers.length === 0) {
+        alert('請至少選擇一個球員')
         return
+      }
+      
+      // 分別處理打者和投手
+      const allReports: { players: string[], role: string }[] = []
+      if (selectedBatters.length > 0) {
+        allReports.push({ players: selectedBatters, role: 'batter' })
+      }
+      if (selectedPitchers.length > 0) {
+        allReports.push({ players: selectedPitchers, role: 'pitcher' })
       }
       
       setLoading(true)
       setImageLoaded(false) // 重置圖片載入狀態
       setImageBlob(null) // 清除舊的暫存
       
-      // 在 URL 後面加上時間戳和球員列表，強制瀏覽器重新請求（避免快取）
+      // 在 URL 後面加上時間戳，強制瀏覽器重新請求（避免快取）
       const timestamp = new Date().getTime()
-      const playersParam = encodeURIComponent(JSON.stringify(selectedPlayerList))
       
-      // 先請求生成報告（使用 view 模式，不帶下載頭，避免服務器端錯誤）
-      const response = await fetch(`/api/download-report?action=view&players=${playersParam}&t=${timestamp}`)
-      
-      if (!response.ok) {
-        let errorMessage = `生成報告失敗: ${response.status}`
-        try {
-          const errorText = await response.text()
-          console.error('Server error response:', errorText)
-          if (errorText) {
-            errorMessage = `錯誤 (${response.status}): ${errorText.substring(0, 200)}`
+      // 為每個角色組生成報告並下載
+      for (const reportGroup of allReports) {
+        const playersParam = encodeURIComponent(JSON.stringify(reportGroup.players))
+        const roleParam = reportGroup.role
+        
+        // 先請求生成報告（使用 view 模式，不帶下載頭，避免服務器端錯誤）
+        const response = await fetch(`/api/download-report?action=view&players=${playersParam}&role=${roleParam}&t=${timestamp}`)
+        
+        if (!response.ok) {
+          let errorMessage = `生成${roleParam === 'pitcher' ? '投手' : '打者'}報告失敗: ${response.status}`
+          try {
+            const errorText = await response.text()
+            console.error('Server error response:', errorText)
+            if (errorText) {
+              errorMessage = `錯誤 (${response.status}): ${errorText.substring(0, 200)}`
+            }
+          } catch (e) {
+            // 如果無法讀取錯誤信息，使用默認錯誤
           }
-        } catch (e) {
-          // 如果無法讀取錯誤信息，使用默認錯誤
+          throw new Error(errorMessage)
         }
-        throw new Error(errorMessage)
+        
+        // 獲取 ZIP 數據並暫存
+        const blob = await response.blob()
+        
+        // 檢查 blob 是否有效
+        if (!blob || blob.size === 0) {
+          throw new Error(`生成的${roleParam === 'pitcher' ? '投手' : '打者'}報告數據為空`)
+        }
+        
+        // 創建下載連結並立即下載
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        const roleName = roleParam === 'pitcher' ? '投手' : '打者'
+        a.download = `${roleName}報告_${reportGroup.players.length}人.zip`
+        document.body.appendChild(a)
+        a.click()
+        
+        // 清理下載相關的資源
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
       }
-      
-      // 獲取 ZIP 數據並暫存
-      const blob = await response.blob()
-      
-      // 檢查 blob 是否有效
-      if (!blob || blob.size === 0) {
-        throw new Error('生成的報告數據為空')
-      }
-      
-      // 暫存 Blob
-      setImageBlob(blob)
-      
-      // 創建下載連結並立即下載
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `打者報告_${selectedPlayerList.length}人.zip`
-      document.body.appendChild(a)
-      a.click()
-      
-      // 清理下載相關的資源
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
       
       // 下載成功後，清理暫存的數據
       setImageBlob(null)
       
-      // 下載成功後，顯示第一張圖片預覽（可選）
-      if (selectedPlayerList.length === 1) {
-        // 如果只有一個球員，顯示預覽
-        const previewUrl = `/api/download-report?action=view&page=1&players=${playersParam}&t=${timestamp}`
+      // 如果只有一個球員，顯示預覽
+      const totalPlayers = selectedBatters.length + selectedPitchers.length
+      if (totalPlayers === 1) {
+        const firstGroup = allReports[0]
+        const playersParam = encodeURIComponent(JSON.stringify(firstGroup.players))
+        const previewUrl = `/api/download-report?action=view&page=1&players=${playersParam}&role=${firstGroup.role}&t=${timestamp}`
         setImageUrl(previewUrl)
       } else {
         // 多個球員，不顯示預覽
@@ -736,7 +760,7 @@ export default function Home() {
                 }
               }}
             >
-              {loading ? '生成中...' : (selectedBatterCount > 0 ? `生成並下載報告 (${selectedBatterCount} 人)` : '生成並下載報告')}
+              {loading ? '生成中...' : (totalSelectedCount > 0 ? `生成並下載報告 (${totalSelectedCount} 人${selectedBatterCount > 0 && selectedPitcherCount > 0 ? `，打者${selectedBatterCount}人，投手${selectedPitcherCount}人` : selectedBatterCount > 0 ? `，打者${selectedBatterCount}人` : `，投手${selectedPitcherCount}人`})` : '生成並下載報告')}
             </button>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center', width: '100%' }}>

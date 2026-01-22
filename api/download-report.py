@@ -29,7 +29,7 @@ except ImportError as e:
 # 導入 Toolbox 模組
 try:
     sys.path.insert(0, os.path.join(project_root, 'Label_Data'))
-    from Toolbox import RISPAVG, GB_FB
+    from Toolbox import *
 except ImportError as e:
     print(f"Warning: Could not import Toolbox: {e}")
     RISPAVG = None
@@ -336,6 +336,21 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
             query = text("SELECT * FROM Stonk_pitcher WHERE 球員 = :player_name LIMIT 1")
             df_player_stat = pd.read_sql(query, conn, params={'player_name': pitcher_name})
     
+    if df_cache_balls_stat_pa is not None:
+        df_player_each_PA = df_cache_balls_stat_pa[df_cache_balls_stat_pa['Pitcher'] == pitcher_name].reset_index(drop=True)
+    else:
+        engine = create_engine(
+            "mysql+pymysql://cloudeep:iEEsgOxVpU4RIGMo@database-test.c4zrhmao4pj4.ap-northeast-1.rds.amazonaws.com:38064/test_ERP_Modules"
+        )
+        with engine.connect() as conn:
+            from sqlalchemy import text
+            query = text("""
+                SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
+                FROM cache_balls_stat
+                WHERE PA_Result IS NOT NULL AND PA_Result != '' AND Pitcher = :pitcher_name
+            """)
+            df_player_each_PA = pd.read_sql(query, conn, params={'pitcher_name': pitcher_name})
+    
     if len(df_player_stat) == 0:
         raise ValueError(f'找不到投手: {pitcher_name}')
     
@@ -356,10 +371,27 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
         height_weight = f"{int(df_player_stat.at[0, '身高'])}cm {int(df_player_stat.at[0, '體重'])}kg"
         I1.text((210, 150), height_weight, fill=(255, 255, 255), font=ImageFont.truetype(font_path, 14) if os.path.exists(font_path) else font)
     
-    # K% 區塊
-    K_P_list = ["K%", "BB%", "WHIP", "AVG", "AVG_RHB", "AVG_LHB"]
-    for i in range(len(K_P_list)):
-        column = K_P_list[i]
+    if df_player_stat.at[0, 'AVG'].isna():
+        df_player_stat.at[0, 'AVG'] = AVG(df_player_each_PA)
+    if df_player_stat.at[0, 'AVG_RHB'].isna():
+        df_player_stat.at[0, 'AVG_RHB'] = AVG(df_player_each_PA[df_player_each_PA['BatS'] == 0])
+    if df_player_stat.at[0, 'AVG_LHB'].isna():
+        df_player_stat.at[0, 'AVG_LHB'] = AVG(df_player_each_PA[df_player_each_PA['BatS'] == 1])
+    
+    # K% 區塊 - 對照資料表欄位名稱
+    # 資料表欄位：K百分比, BB百分比, WHIP, AVG, AVG_RHB, AVG_LHB
+    # 嘗試多種可能的欄位名稱格式
+    K_P_list = [
+        ("K百分比", "K%"),  # 優先使用中文欄位名
+        ("BB百分比", "BB%"),
+        ("WHIP", "WHIP"),
+        ("AVG", "AVG"),
+        ("AVG_RHB", "AVG_RHB"),
+        ("AVG_LHB", "AVG_LHB")
+    ]
+    for i, (column_primary, column_fallback) in enumerate(K_P_list):
+        # 優先使用主要欄位名，如果不存在則嘗試備用名稱
+        column = column_primary if column_primary in df_player_stat.columns else column_fallback
         if column not in df_player_stat.columns:
             continue
         statistic_value = df_player_stat.at[0, column]
@@ -376,10 +408,25 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
         else:
             I1.text((22 + 46 * (i - 3), 280), display_value, fill=(0, 0, 0), font=statistic_font)
     
-    # ERA 區塊
-    ERA_list = ["ERA", 'IP', 'W-L', 'G/SP', 'H', '中繼', '後援', 'SO', 'BB', 'K/9', 'BB/9']
-    for i in range(len(ERA_list)):
-        column = ERA_list[i]
+    # ERA 區塊 - 對照資料表欄位名稱
+    # 資料表欄位：ERA, IP, W_L, G_SP, H, 中繼, 後援, SO, BB, K_9, BB_9
+    # 嘗試多種可能的欄位名稱格式
+    ERA_list = [
+        ("ERA", "ERA"),
+        ("IP", "IP"),
+        ("W_L", "W-L"),  # 優先使用下劃線格式
+        ("G_SP", "G/SP"),
+        ("H", "H"),
+        ("中繼", "中繼"),
+        ("後援", "後援"),
+        ("SO", "SO"),
+        ("BB", "BB"),
+        ("K_9", "K/9"),  # 優先使用下劃線格式
+        ("BB_9", "BB/9")
+    ]
+    for i, (column_primary, column_fallback) in enumerate(ERA_list):
+        # 優先使用主要欄位名，如果不存在則嘗試備用名稱
+        column = column_primary if column_primary in df_player_stat.columns else column_fallback
         if column not in df_player_stat.columns:
             continue
         statistic_value = df_player_stat.at[0, column]
@@ -398,25 +445,11 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
             I1.text((160 + 42 * (i - 7), 235), str(statistic_value), fill=(0, 0, 0), font=statistic_font)
     
     # 滾飛比 / 得點圈
-    if df_cache_balls_stat_pa is not None:
-        df_player_each_PA = df_cache_balls_stat_pa[df_cache_balls_stat_pa['Pitcher'] == pitcher_name].reset_index(drop=True)
-    else:
-        engine = create_engine(
-            "mysql+pymysql://cloudeep:iEEsgOxVpU4RIGMo@database-test.c4zrhmao4pj4.ap-northeast-1.rds.amazonaws.com:38064/test_ERP_Modules"
-        )
-        with engine.connect() as conn:
-            from sqlalchemy import text
-            query = text("""
-                SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
-                FROM cache_balls_stat
-                WHERE PA_Result IS NOT NULL AND PA_Result != '' AND Pitcher = :pitcher_name
-            """)
-            df_player_each_PA = pd.read_sql(query, conn, params={'pitcher_name': pitcher_name})
     
     if RISPAVG and GB_FB and len(df_player_each_PA) > 0:
         得點圈 = RISPAVG(df_player_each_PA)
         滾飛比 = GB_FB(df_player_each_PA)
-        I1.text((328, 235), str(滾飛比), fill=(0, 0, 0), font=statistic_font)
+        I1.text((328, 235), str(滾飛比), fill=(0, 0, 0), nt=statistic_font)
         I1.text((380, 235), str(得點圈), fill=(0, 0, 0), font=statistic_font)
     
     # 時間區塊

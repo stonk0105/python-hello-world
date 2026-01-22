@@ -135,3 +135,5 @@ vercel
 - [TypeScript](https://www.typescriptlang.org/) - 類型安全
 - [Python 3.9](https://www.python.org/) - 後端 API
 - [Vercel](https://vercel.com/) - 部署平台
+
+1

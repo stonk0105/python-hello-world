@@ -673,6 +673,13 @@ class handler(BaseHTTPRequestHandler):
                     """)
                     params = {f'player_{i}': player for i, player in enumerate(players_list)}
                     df_cache_balls_stat = pd.read_sql(query, conn, params=params)
+                    
+                    # 檢查是否查詢到數據
+                    if len(df_cache_balls_stat) == 0:
+                        print(f'警告: 找不到打者 {players_list} 的 cache_balls_stat 數據')
+                    else:
+                        print(f'查詢到 {len(df_cache_balls_stat)} 筆 cache_balls_stat 數據')
+                    
                     df_cache_balls_stat['APP_KZoneY'] = pd.to_numeric(df_cache_balls_stat['APP_KZoneY'], errors='coerce')
                     df_cache_balls_stat['APP_KZoneZ'] = pd.to_numeric(df_cache_balls_stat['APP_KZoneZ'], errors='coerce')
                     df_cache_balls_stat['APP_VeloRel'] = pd.to_numeric(df_cache_balls_stat['APP_VeloRel'], errors='coerce')
@@ -681,12 +688,21 @@ class handler(BaseHTTPRequestHandler):
                     df_cache_balls_stat['OZone'] = pd.to_numeric(df_cache_balls_stat['OZone'], errors='coerce')
                     df_cache_balls_stat = df_cache_balls_stat.dropna(subset=['APP_KZoneY', 'APP_KZoneZ']).reset_index(drop=True)
                     df_cache_balls_stat = df_cache_balls_stat[~df_cache_balls_stat['TaggedPitchType'].isin(['?', '', 'OT'])].reset_index(drop=True)
+                    
+                    # 檢查處理後的數據
+                    if len(df_cache_balls_stat) == 0:
+                        print(f'警告: 處理後找不到有效的 cache_balls_stat 數據')
+                    else:
+                        print(f'處理後剩餘 {len(df_cache_balls_stat)} 筆有效數據')
                 df_cache_balls_stat_pa = None
             
             # 如果有多個球員，生成 ZIP 文件
             if len(players_list) > 1:
                 # 生成所有球員的圖片並打包成 ZIP
                 zip_buffer = io.BytesIO()
+                warnings = []  # 收集警告信息
+                errors = []   # 收集錯誤信息
+                
                 with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
                     for player_name in players_list:
                         try:
@@ -702,13 +718,47 @@ class handler(BaseHTTPRequestHandler):
                                 filename_p1 = f'{player_name}_完整報告p1.png'
                                 zip_file.writestr(filename_p1, image_data_p1)
                                 
-                                image_data_p2 = generate_batter_page2(player_name, '日本', df_cache_balls_stat)
-                                filename_p2 = f'{player_name}_完整報告p2.png'
-                                zip_file.writestr(filename_p2, image_data_p2)
+                                # 生成 Page 2，如果失敗則記錄詳細錯誤
+                                try:
+                                    if df_cache_balls_stat is None or len(df_cache_balls_stat) == 0:
+                                        raise ValueError(f'找不到 {player_name} 的 cache_balls_stat 數據')
+                                    
+                                    # 檢查該球員是否有數據
+                                    player_data = df_cache_balls_stat[df_cache_balls_stat['Batter'] == player_name]
+                                    if len(player_data) == 0:
+                                        raise ValueError(f'找不到 {player_name} 在 cache_balls_stat 中的數據')
+                                    
+                                    image_data_p2 = generate_batter_page2(player_name, '日本', df_cache_balls_stat)
+                                    filename_p2 = f'{player_name}_完整報告p2.png'
+                                    zip_file.writestr(filename_p2, image_data_p2)
+                                except Exception as e2:
+                                    # Page 2 生成失敗，記錄錯誤但繼續（Page 1 已經寫入）
+                                    import traceback
+                                    error_msg = f'{player_name} 的 Page 2 生成失敗: {str(e2)}'
+                                    warnings.append(error_msg)
+                                    print(error_msg)
+                                    print(traceback.format_exc())
+                                    # 不 raise，讓 Page 1 保留在 ZIP 中
                         except Exception as e:
-                            # 如果某個球員生成失敗，記錄錯誤但繼續處理其他球員
-                            print(f'生成 {player_name} 的報告失敗: {str(e)}')
+                            # 如果某個球員的 Page 1 生成失敗，記錄錯誤但繼續處理其他球員
+                            import traceback
+                            error_msg = f'{player_name} 的報告生成失敗: {str(e)}'
+                            errors.append(error_msg)
+                            print(error_msg)
+                            print(traceback.format_exc())
                             continue
+                    
+                    # 如果有警告或錯誤，添加到 ZIP 中
+                    if warnings or errors:
+                        error_log = []
+                        if errors:
+                            error_log.append("=== 錯誤 ===")
+                            error_log.extend(errors)
+                        if warnings:
+                            error_log.append("\n=== 警告 ===")
+                            error_log.extend(warnings)
+                        error_log_text = "\n".join(error_log)
+                        zip_file.writestr('錯誤日誌.txt', error_log_text.encode('utf-8'))
                 
                 zip_buffer.seek(0)
                 zip_data = zip_buffer.getvalue()
@@ -720,6 +770,17 @@ class handler(BaseHTTPRequestHandler):
                 if action == 'download':
                     role_name = '投手' if role_param == 'pitcher' else '打者'
                     self.send_header('Content-Disposition', f'attachment; filename="{role_name}報告.zip"')
+                
+                # 如果有警告或錯誤，通過響應頭傳遞給前端
+                if warnings:
+                    import json
+                    warnings_json = json.dumps(warnings, ensure_ascii=False)
+                    self.send_header('X-Report-Warnings', warnings_json)
+                if errors:
+                    import json
+                    errors_json = json.dumps(errors, ensure_ascii=False)
+                    self.send_header('X-Report-Errors', errors_json)
+                
                 self.send_header('Content-Length', str(len(zip_data)))
                 self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
                 self.send_header('Pragma', 'no-cache')

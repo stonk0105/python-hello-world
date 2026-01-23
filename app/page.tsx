@@ -232,6 +232,32 @@ export default function Home() {
           throw new Error(errorMessage)
         }
         
+        // 檢查響應頭中的警告和錯誤信息
+        const warnings = response.headers.get('X-Report-Warnings')
+        const errors = response.headers.get('X-Report-Errors')
+        
+        if (warnings) {
+          try {
+            const warningsList = JSON.parse(warnings)
+            if (warningsList.length > 0) {
+              alert(`警告：\n${warningsList.join('\n')}`)
+            }
+          } catch (e) {
+            console.error('無法解析警告信息:', e)
+          }
+        }
+        
+        if (errors) {
+          try {
+            const errorsList = JSON.parse(errors)
+            if (errorsList.length > 0) {
+              alert(`錯誤：\n${errorsList.join('\n')}`)
+            }
+          } catch (e) {
+            console.error('無法解析錯誤信息:', e)
+          }
+        }
+        
         // 獲取 ZIP 數據並暫存
         const blob = await response.blob()
         

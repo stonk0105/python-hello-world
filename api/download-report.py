@@ -828,7 +828,7 @@ class handler(BaseHTTPRequestHandler):
                 df_cache_balls_stat_pa = None
             
             # 如果有多個球員，生成 ZIP 文件
-            if len(players_list) > 1:
+            if len(players_list) >= 1:
                 # 生成所有球員的圖片並打包成 ZIP
                 zip_buffer = io.BytesIO()
                 warnings = []  # 收集警告信息

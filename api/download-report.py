@@ -578,6 +578,137 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
     img_buffer.seek(0)
     return img_buffer.getvalue()
 
+def generate_pitcher_page2(pitcher_name='小園海斗', country='日本', df_cache_balls_stat=None):
+    """生成投手報告第二頁"""
+    if p12_func is None:
+        raise ImportError("p12_func module is not available")
+    
+    project_root = os.path.dirname(os.path.dirname(__file__))
+    
+    # 從傳入的資料或資料庫獲取比賽數據
+    if df_cache_balls_stat is not None:
+        df_player = df_cache_balls_stat[df_cache_balls_stat['Pitcher'] == pitcher_name].reset_index(drop=True)
+    else:
+        # 連接資料庫
+        engine = create_engine(
+            "mysql+pymysql://cloudeep:iEEsgOxVpU4RIGMo@database-test.c4zrhmao4pj4.ap-northeast-1.rds.amazonaws.com:38064/test_ERP_Modules"
+        )
+        # 從資料庫讀取比賽數據
+        with engine.connect() as conn:
+            query = text("""
+                SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
+                FROM cache_balls_stat
+                WHERE PitchCode IN ('Strk-C','Strk-S','Ball','Foul','In-Play','Inplay','IBB','Ball-B-I','Ball-Ill-Pi','Strk-PN','Ball-PN')
+                AND Pitcher = :pitcher_name
+            """)
+            df_player = pd.read_sql(query, conn, params={'pitcher_name': pitcher_name})
+    
+    if len(df_player) == 0:
+        raise ValueError(f'找不到投手 {pitcher_name} 的比賽數據')
+    
+    # 處理數據
+    df_player['APP_KZoneY'] = pd.to_numeric(df_player['APP_KZoneY'], errors='coerce')
+    df_player['APP_KZoneZ'] = pd.to_numeric(df_player['APP_KZoneZ'], errors='coerce')
+    df_player['APP_VeloRel'] = pd.to_numeric(df_player['APP_VeloRel'], errors='coerce')
+    df_player = df_player.dropna(subset=['APP_KZoneY', 'APP_KZoneZ']).reset_index(drop=True)
+    df_player = df_player[~df_player['TaggedPitchType'].isin(['?', '', 'OT'])].reset_index(drop=True)
+    
+    # 特殊處理：米奇白
+    if pitcher_name == '米奇白':
+        pitcher_name = 'Mitch White'
+    
+    # 創建圖表
+    bgc = '#FFFFFF'
+    fig = plt.figure(figsize=(11.69, 8.27), facecolor=bgc)
+    axes0 = fig.add_axes([0, 0, 1, 1], facecolor=bgc)
+    axes0.set_xlim(0, 11.69)
+    axes0.set_ylim(0, 8.27)
+    
+    # 讀取底圖
+    base_image_path = os.path.join(project_root, 'Label_Data', 'Pitcher2.png')
+    if not os.path.exists(base_image_path):
+        raise FileNotFoundError(f'Pitcher2.png not found at: {base_image_path}')
+    
+    im = Image.open(base_image_path)
+    I1 = ImageDraw.Draw(im)
+    
+    # 載入字體
+    font_path = os.path.join(project_root, 'Label_Data', 'msjhbd.ttc')
+    
+    try:
+        font = ImageFont.truetype(font_path, 35)
+    except:
+        font = ImageFont.load_default()
+    
+    # 球員名稱
+    player_name_chinese = pitcher_name
+    player_name_eng = ''
+    
+    I1.text((90, 10), player_name_chinese, fill=(0, 0, 0), font=font)
+    if player_name_eng:
+        I1.text((90, 50), player_name_eng, fill=(0, 0, 0), font=font)
+    
+    # 投球手型態（PT: 0=右投, 1=左投）
+    pt_dict = {0: '右投', 1: '左投'}
+    if len(df_player) > 0 and 'PT' in df_player.columns:
+        pt_value = df_player.at[0, 'PT'] if not pd.isna(df_player.at[0, 'PT']) else 0
+        pt_text = pt_dict.get(int(pt_value), '右投')
+        I1.text((480, 50), pt_text, fill=(0, 0, 0), font=font)
+    
+    # 將底圖添加到圖表
+    newax = fig.add_axes([0, 0, 1, 1], anchor='NE', zorder=0, facecolor='#00000000')
+    newax.get_xaxis().set_visible(False)
+    newax.get_yaxis().set_visible(False)
+    newax.spines['top'].set_visible(False)
+    newax.spines['right'].set_visible(False)
+    newax.spines['bottom'].set_visible(False)
+    newax.spines['left'].set_visible(False)
+    newax.imshow(im, extent=[0, 11.69, 0, 8.27])
+    
+    # 初始化 p12_func
+    p12 = p12_func()
+    
+    # 場景列表
+    scenario_list = [['0-0'], ['0-1'], ['1-0'], ['0-2', '1-2', '2-2', '3-2'], ['1B', '2B', '3B', 'HR', 'IHR'], ['Strk-S']]
+    
+    # 為左右打者分別繪製圖表
+    for bats in [0, 1]:  # 0=右打, 1=左打
+        df_bats = df_player[df_player['BatS'] == bats].reset_index(drop=True)
+        
+        if len(df_bats) == 0:
+            continue
+        
+        # 為每個場景繪製進壘點
+        for scenario in range(len(scenario_list)):
+            if scenario <= 3:
+                # 場景 0-3: 根據 BS (球數) 篩選
+                df_scenario = df_bats[df_bats['BS'].isin(scenario_list[scenario])].reset_index(drop=True)
+            elif scenario == 4:
+                # 場景 4: 根據 PA_Result (打擊結果) 篩選
+                df_scenario = df_bats[df_bats['PA_Result'].isin(scenario_list[scenario])].reset_index(drop=True)
+            else:
+                # 場景 5: 根據 PitchCode 篩選
+                df_scenario = df_bats[df_bats['PitchCode'].isin(scenario_list[scenario])].reset_index(drop=True)
+            
+            # 繪製進壘點
+            # 位置計算：0.06 + scenario * 0.15, 0.52 - bats * 0.405
+            p12.plate_location(
+                0.06 + scenario * 0.15, 
+                0.52 - bats * 0.405, 
+                0.25 * 0.8, 
+                0.35 * 0.8, 
+                df_scenario, 
+                fig, 
+                'Total'
+            )
+    
+    # 保存到內存
+    img_buffer = io.BytesIO()
+    fig.savefig(img_buffer, format='PNG', dpi=100, bbox_inches='tight', facecolor=bgc)
+    plt.close(fig)
+    img_buffer.seek(0)
+    return img_buffer.getvalue()
+
 class handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
@@ -708,10 +839,32 @@ class handler(BaseHTTPRequestHandler):
                         try:
                             # 根據角色生成不同的報告
                             if role_param == 'pitcher':
-                                # 投手：只生成 Page 1
-                                image_data = generate_pitcher_page1(player_name, '日本', df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
-                                filename = f'{player_name}_完整報告p1.png'
-                                zip_file.writestr(filename, image_data)
+                                # 投手：生成 Page 1 和 Page 2
+                                image_data_p1 = generate_pitcher_page1(player_name, '日本', df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
+                                filename_p1 = f'{player_name}_完整報告p1.png'
+                                zip_file.writestr(filename_p1, image_data_p1)
+                                
+                                # 生成 Page 2，如果失敗則記錄詳細錯誤
+                                try:
+                                    if df_cache_balls_stat is None or len(df_cache_balls_stat) == 0:
+                                        raise ValueError(f'找不到 {player_name} 的 cache_balls_stat 數據')
+                                    
+                                    # 檢查該球員是否有數據
+                                    player_data = df_cache_balls_stat[df_cache_balls_stat['Pitcher'] == player_name]
+                                    if len(player_data) == 0:
+                                        raise ValueError(f'找不到 {player_name} 在 cache_balls_stat 中的數據')
+                                    
+                                    image_data_p2 = generate_pitcher_page2(player_name, '日本', df_cache_balls_stat)
+                                    filename_p2 = f'{player_name}_完整報告p2.png'
+                                    zip_file.writestr(filename_p2, image_data_p2)
+                                except Exception as e2:
+                                    # Page 2 生成失敗，記錄錯誤但繼續（Page 1 已經寫入）
+                                    import traceback
+                                    error_msg = f'{player_name} 的 Page 2 生成失敗: {str(e2)}'
+                                    warnings.append(error_msg)
+                                    print(error_msg)
+                                    print(traceback.format_exc())
+                                    # 不 raise，讓 Page 1 保留在 ZIP 中
                             else:
                                 # 打者：生成 Page 1 和 Page 2
                                 image_data_p1 = generate_batter_page1(player_name, '日本', df_all_players)
@@ -796,10 +949,14 @@ class handler(BaseHTTPRequestHandler):
                         player_name = players_list[0]
                         try:
                             if role_param == 'pitcher':
-                                # 投手：只生成 Page 1
-                                image_data = generate_pitcher_page1(player_name, '日本', df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
-                                filename = f'{player_name}_完整報告p1.png'
-                                zip_file.writestr(filename, image_data)
+                                # 投手：生成 Page 1 和 Page 2
+                                image_data_p1 = generate_pitcher_page1(player_name, '日本', df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
+                                filename_p1 = f'{player_name}_完整報告p1.png'
+                                zip_file.writestr(filename_p1, image_data_p1)
+                                
+                                image_data_p2 = generate_pitcher_page2(player_name, '日本', df_cache_balls_stat)
+                                filename_p2 = f'{player_name}_完整報告p2.png'
+                                zip_file.writestr(filename_p2, image_data_p2)
                             else:
                                 # 打者：生成 Page 1 和 Page 2
                                 image_data_p1 = generate_batter_page1(player_name, '日本', df_all_players)
@@ -830,8 +987,12 @@ class handler(BaseHTTPRequestHandler):
                 else:
                     # 預覽模式：返回單張圖片（用於查看）
                     if role_param == 'pitcher':
-                        # 投手目前只有 Page 1
-                        image_data = generate_pitcher_page1(players_list[0], '日本', df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
+                        # 投手：支持 Page 1 和 Page 2
+                        if page == '2':
+                            image_data = generate_pitcher_page2(players_list[0], '日本', df_cache_balls_stat)
+                        else:
+                            # 默認返回 Page 1
+                            image_data = generate_pitcher_page1(players_list[0], '日本', df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
                     else:
                         # 打者
                         if page == '2':

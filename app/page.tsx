@@ -204,7 +204,7 @@ export default function Home() {
       }
       
       setLoading(true)
-      setImageLoaded(false) // 重置圖片載入狀態
+      setImageUrl(null) // 清除舊的圖片 URL
       setImageBlob(null) // 清除舊的暫存
       
       // 在 URL 後面加上時間戳，強制瀏覽器重新請求（避免快取）
@@ -282,24 +282,13 @@ export default function Home() {
       
       // 下載成功後，清理暫存的數據
       setImageBlob(null)
-      
-      // 如果只有一個球員，顯示預覽
-      const totalPlayers = selectedBatters.length + selectedPitchers.length
-      if (totalPlayers === 1) {
-        const firstGroup = allReports[0]
-        const playersParam = encodeURIComponent(JSON.stringify(firstGroup.players))
-        const previewUrl = `/api/download-report?action=view&page=1&players=${playersParam}&role=${firstGroup.role}&t=${timestamp}`
-        setImageUrl(previewUrl)
-      } else {
-        // 多個球員，不顯示預覽
-        setImageUrl(null)
-      }
+      setImageUrl(null) // 不顯示預覽圖片，直接下載
       
     } catch (err) {
       console.error('Generate report error:', err)
       const errorMsg = err instanceof Error ? err.message : '生成報告失敗，請稍後再試'
       alert(errorMsg)
-      setImageLoaded(false)
+      setImageUrl(null)
       setImageBlob(null)
     } finally {
       setLoading(false)

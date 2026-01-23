@@ -215,8 +215,8 @@ export default function Home() {
         const playersParam = encodeURIComponent(JSON.stringify(reportGroup.players))
         const roleParam = reportGroup.role
         
-        // 先請求生成報告（使用 view 模式，不帶下載頭，避免服務器端錯誤）
-        const response = await fetch(`/api/download-report?action=view&players=${playersParam}&role=${roleParam}&t=${timestamp}`)
+        // 請求生成報告並下載（使用 download 模式，返回 ZIP 文件）
+        const response = await fetch(`/api/download-report?action=download&players=${playersParam}&role=${roleParam}&t=${timestamp}`)
         
         if (!response.ok) {
           let errorMessage = `生成${roleParam === 'pitcher' ? '投手' : '打者'}報告失敗: ${response.status}`

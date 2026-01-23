@@ -223,6 +223,13 @@ def generate_batter_page2(batter_name='小園海斗', country='日本', df_cache
     axes0 = fig.add_axes([0, 0, 1, 1], facecolor=bgc)
     axes0.set_xlim(0, 11.69)
     axes0.set_ylim(0, 8.27)
+    # 隱藏主圖表的座標軸
+    axes0.get_xaxis().set_visible(False)
+    axes0.get_yaxis().set_visible(False)
+    axes0.spines['top'].set_visible(False)
+    axes0.spines['right'].set_visible(False)
+    axes0.spines['bottom'].set_visible(False)
+    axes0.spines['left'].set_visible(False)
     
     # 讀取底圖
     base_image_path = os.path.join(project_root, 'Label_Data', 'Batter2.png')
@@ -623,6 +630,13 @@ def generate_pitcher_page2(pitcher_name='小園海斗', country='日本', df_cac
     axes0 = fig.add_axes([0, 0, 1, 1], facecolor=bgc)
     axes0.set_xlim(0, 11.69)
     axes0.set_ylim(0, 8.27)
+    # 隱藏主圖表的座標軸
+    axes0.get_xaxis().set_visible(False)
+    axes0.get_yaxis().set_visible(False)
+    axes0.spines['top'].set_visible(False)
+    axes0.spines['right'].set_visible(False)
+    axes0.spines['bottom'].set_visible(False)
+    axes0.spines['left'].set_visible(False)
     
     # 讀取底圖
     base_image_path = os.path.join(project_root, 'Label_Data', 'Pitcher2.png')

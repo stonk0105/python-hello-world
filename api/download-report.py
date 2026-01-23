@@ -155,32 +155,35 @@ def generate_batter_page1(batter_name='小園海斗', country='日本', df_all_p
     img_buffer.seek(0)
     return img_buffer.getvalue()
 
-def generate_batter_page2(batter_name='小園海斗', country='日本'):
+def generate_batter_page2(batter_name='小園海斗', country='日本', df_cache_balls_stat=None):
     """生成打者報告第二頁"""
     if p12_func is None:
         raise ImportError("p12_func module is not available")
     
     project_root = os.path.dirname(os.path.dirname(__file__))
     
-    # 連接資料庫
-    engine = create_engine(
-        "mysql+pymysql://cloudeep:iEEsgOxVpU4RIGMo@database-test.c4zrhmao4pj4.ap-northeast-1.rds.amazonaws.com:38064/test_ERP_Modules"
-    )
-    
-    # 從資料庫讀取比賽數據
-    with engine.connect() as conn:
-        query = text("""
-            SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
-            FROM cache_balls_stat
-            WHERE PitchCode IN ('Strk-C','Strk-S','Ball','Foul','In-Play','Inplay','IBB','Ball-B-I','Ball-Ill-Pi','Strk-PN','Ball-PN')
-            AND Batter = :batter_name
-        """)
-        bb_BallsStat_Bungee = pd.read_sql(query, conn, params={'batter_name': batter_name})
+    # 從傳入的資料或資料庫獲取比賽數據
+    if df_cache_balls_stat is not None:
+        bb_BallsStat_Bungee = df_cache_balls_stat[df_cache_balls_stat['Batter'] == batter_name].reset_index(drop=True)
+    else:
+        # 連接資料庫
+        engine = create_engine(
+            "mysql+pymysql://cloudeep:iEEsgOxVpU4RIGMo@database-test.c4zrhmao4pj4.ap-northeast-1.rds.amazonaws.com:38064/test_ERP_Modules"
+        )
+        # 從資料庫讀取比賽數據
+        with engine.connect() as conn:
+            query = text("""
+                SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
+                FROM cache_balls_stat
+                WHERE PitchCode IN ('Strk-C','Strk-S','Ball','Foul','In-Play','Inplay','IBB','Ball-B-I','Ball-Ill-Pi','Strk-PN','Ball-PN')
+                AND Batter = :batter_name
+            """)
+            bb_BallsStat_Bungee = pd.read_sql(query, conn, params={'batter_name': batter_name})
     
     if len(bb_BallsStat_Bungee) == 0:
         raise ValueError(f'找不到球員 {batter_name} 的比賽數據')
     
-    # 處理數據
+    # 處理數據（這些操作是冪等的，即使數據已經處理過也不會出錯）
     bb_BallsStat_Bungee['Batter'].replace('Erisbel Arruebarruena', 'Erisbel Arruebarrena', inplace=True)
     bb_BallsStat_Bungee['APP_KZoneY'] = pd.to_numeric(bb_BallsStat_Bungee['APP_KZoneY'], errors='coerce')
     bb_BallsStat_Bungee['APP_KZoneZ'] = pd.to_numeric(bb_BallsStat_Bungee['APP_KZoneZ'], errors='coerce')
@@ -657,7 +660,27 @@ class handler(BaseHTTPRequestHandler):
                     query = text(f"SELECT * FROM {table_name} WHERE 球員 IN ({placeholders})")
                     params = {f'player_{i}': player for i, player in enumerate(players_list)}
                     df_all_players = pd.read_sql(query, conn, params=params)
-                df_cache_balls_stat = None
+                
+                # 查詢 cache_balls_stat（打者 Page 2 需要）
+                with engine.connect() as conn:
+                    from sqlalchemy import text
+                    placeholders = ','.join([f':player_{i}' for i in range(len(players_list))])
+                    query = text(f"""
+                        SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
+                        FROM cache_balls_stat
+                        WHERE PitchCode IN ('Strk-C','Strk-S','Ball','Foul','In-Play','Inplay','IBB','Ball-B-I','Ball-Ill-Pi','Strk-PN','Ball-PN')
+                        AND Batter IN ({placeholders})
+                    """)
+                    params = {f'player_{i}': player for i, player in enumerate(players_list)}
+                    df_cache_balls_stat = pd.read_sql(query, conn, params=params)
+                    df_cache_balls_stat['APP_KZoneY'] = pd.to_numeric(df_cache_balls_stat['APP_KZoneY'], errors='coerce')
+                    df_cache_balls_stat['APP_KZoneZ'] = pd.to_numeric(df_cache_balls_stat['APP_KZoneZ'], errors='coerce')
+                    df_cache_balls_stat['APP_VeloRel'] = pd.to_numeric(df_cache_balls_stat['APP_VeloRel'], errors='coerce')
+                    df_cache_balls_stat['LocX'] = pd.to_numeric(df_cache_balls_stat['LocX'], errors='coerce')
+                    df_cache_balls_stat['LocY'] = pd.to_numeric(df_cache_balls_stat['LocY'], errors='coerce')
+                    df_cache_balls_stat['OZone'] = pd.to_numeric(df_cache_balls_stat['OZone'], errors='coerce')
+                    df_cache_balls_stat = df_cache_balls_stat.dropna(subset=['APP_KZoneY', 'APP_KZoneZ']).reset_index(drop=True)
+                    df_cache_balls_stat = df_cache_balls_stat[~df_cache_balls_stat['TaggedPitchType'].isin(['?', '', 'OT'])].reset_index(drop=True)
                 df_cache_balls_stat_pa = None
             
             # 如果有多個球員，生成 ZIP 文件
@@ -669,11 +692,19 @@ class handler(BaseHTTPRequestHandler):
                         try:
                             # 根據角色生成不同的報告
                             if role_param == 'pitcher':
+                                # 投手：只生成 Page 1
                                 image_data = generate_pitcher_page1(player_name, '日本', df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
+                                filename = f'{player_name}_完整報告p1.png'
+                                zip_file.writestr(filename, image_data)
                             else:
-                                image_data = generate_batter_page1(player_name, '日本', df_all_players)
-                            filename = f'{player_name}_完整報告p1.png'
-                            zip_file.writestr(filename, image_data)
+                                # 打者：生成 Page 1 和 Page 2
+                                image_data_p1 = generate_batter_page1(player_name, '日本', df_all_players)
+                                filename_p1 = f'{player_name}_完整報告p1.png'
+                                zip_file.writestr(filename_p1, image_data_p1)
+                                
+                                image_data_p2 = generate_batter_page2(player_name, '日本', df_cache_balls_stat)
+                                filename_p2 = f'{player_name}_完整報告p2.png'
+                                zip_file.writestr(filename_p2, image_data_p2)
                         except Exception as e:
                             # 如果某個球員生成失敗，記錄錯誤但繼續處理其他球員
                             print(f'生成 {player_name} 的報告失敗: {str(e)}')
@@ -696,33 +727,67 @@ class handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(zip_data)
             else:
-                # 單個球員，返回單張圖片（用於查看）
-                if role_param == 'pitcher':
-                    # 投手目前只有 Page 1
-                    image_data = generate_pitcher_page1(players_list[0], '日本', df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
-                else:
-                    # 打者
-                    if action == 'view' and page == '2':
-                        image_data = generate_batter_page2(players_list[0], '日本')
-                    else:
-                        # 默認返回 Page1
-                        image_data = generate_batter_page1(players_list[0], '日本', df_all_players)
-                
-                # 設置響應頭
-                self.send_response(200)
-                self.send_header('Content-type', 'image/png')
-                self.send_header('Content-Length', str(len(image_data)))
-                self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
-                self.send_header('Pragma', 'no-cache')
-                self.send_header('Expires', '0')
-                
-                # 如果是下載模式，添加下載頭
+                # 單個球員
                 if action == 'download':
-                    filename = f'{players_list[0]}_完整報告p1.png'
-                    self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
-                
-                self.end_headers()
-                self.wfile.write(image_data)
+                    # 下載模式：生成 ZIP 文件（打者包含 Page 1 和 Page 2）
+                    zip_buffer = io.BytesIO()
+                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                        player_name = players_list[0]
+                        try:
+                            if role_param == 'pitcher':
+                                # 投手：只生成 Page 1
+                                image_data = generate_pitcher_page1(player_name, '日本', df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
+                                filename = f'{player_name}_完整報告p1.png'
+                                zip_file.writestr(filename, image_data)
+                            else:
+                                # 打者：生成 Page 1 和 Page 2
+                                image_data_p1 = generate_batter_page1(player_name, '日本', df_all_players)
+                                filename_p1 = f'{player_name}_完整報告p1.png'
+                                zip_file.writestr(filename_p1, image_data_p1)
+                                
+                                image_data_p2 = generate_batter_page2(player_name, '日本', df_cache_balls_stat)
+                                filename_p2 = f'{player_name}_完整報告p2.png'
+                                zip_file.writestr(filename_p2, image_data_p2)
+                        except Exception as e:
+                            print(f'生成 {player_name} 的報告失敗: {str(e)}')
+                            raise
+                    
+                    zip_buffer.seek(0)
+                    zip_data = zip_buffer.getvalue()
+                    
+                    # 設置響應頭
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/zip')
+                    role_name = '投手' if role_param == 'pitcher' else '打者'
+                    self.send_header('Content-Disposition', f'attachment; filename="{role_name}報告_1人.zip"')
+                    self.send_header('Content-Length', str(len(zip_data)))
+                    self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+                    self.send_header('Pragma', 'no-cache')
+                    self.send_header('Expires', '0')
+                    self.end_headers()
+                    self.wfile.write(zip_data)
+                else:
+                    # 預覽模式：返回單張圖片（用於查看）
+                    if role_param == 'pitcher':
+                        # 投手目前只有 Page 1
+                        image_data = generate_pitcher_page1(players_list[0], '日本', df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
+                    else:
+                        # 打者
+                        if page == '2':
+                            image_data = generate_batter_page2(players_list[0], '日本', df_cache_balls_stat)
+                        else:
+                            # 默認返回 Page1
+                            image_data = generate_batter_page1(players_list[0], '日本', df_all_players)
+                    
+                    # 設置響應頭
+                    self.send_response(200)
+                    self.send_header('Content-type', 'image/png')
+                    self.send_header('Content-Length', str(len(image_data)))
+                    self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+                    self.send_header('Pragma', 'no-cache')
+                    self.send_header('Expires', '0')
+                    self.end_headers()
+                    self.wfile.write(image_data)
             
         except Exception as e:
             import traceback

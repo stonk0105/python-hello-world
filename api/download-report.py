@@ -46,6 +46,99 @@ _db_cache = {
     'cache_balls_stat_pa': None
 }
 
+# 讀取中英文對照表
+_player_name_cache = {
+    '日本': None,
+    '韓國': None,
+    '澳洲': None,
+    '捷克': None
+}
+
+def load_player_name_mapping():
+    """載入各國球員中英文對照表"""
+    global _player_name_cache
+    project_root = os.path.dirname(os.path.dirname(__file__))
+    
+    try:
+        # 日本
+        jpn_path = os.path.join(project_root, '日本人中英文對照.xlsx')
+        if os.path.exists(jpn_path):
+            _player_name_cache['日本'] = pd.read_excel(jpn_path)
+            print(f"載入日本中英文對照表: {len(_player_name_cache['日本'])} 筆")
+        
+        # 韓國
+        kr_path = os.path.join(project_root, '韓國人中英文對照.xlsx')
+        if os.path.exists(kr_path):
+            _player_name_cache['韓國'] = pd.read_excel(kr_path)
+            print(f"載入韓國中英文對照表: {len(_player_name_cache['韓國'])} 筆")
+        
+        # 澳洲
+        aus_path = os.path.join(project_root, '澳洲人中英文對照.xlsx')
+        if os.path.exists(aus_path):
+            _player_name_cache['澳洲'] = pd.read_excel(aus_path)
+            print(f"載入澳洲中英文對照表: {len(_player_name_cache['澳洲'])} 筆")
+        
+        # 捷克
+        cze_path = os.path.join(project_root, '捷克人中英文對照.xlsx')
+        if os.path.exists(cze_path):
+            _player_name_cache['捷克'] = pd.read_excel(cze_path)
+            print(f"載入捷克中英文對照表: {len(_player_name_cache['捷克'])} 筆")
+    except Exception as e:
+        print(f"載入中英文對照表失敗: {e}")
+
+def get_player_names(player_name, country):
+    """
+    根據國家和球員名稱獲取中英文名稱
+    
+    Args:
+        player_name: 球員名稱（可能是中文或英文）
+        country: 國家（日本、韓國、澳洲、捷克）
+    
+    Returns:
+        (player_name_chinese, player_name_eng): 中英文名稱元組
+    """
+    # 如果對照表未載入，先載入
+    if all(v is None for v in _player_name_cache.values()):
+        load_player_name_mapping()
+    
+    df_mapping = _player_name_cache.get(country)
+    
+    if df_mapping is None or len(df_mapping) == 0:
+        return player_name, ''
+    
+    player_name_chinese = player_name
+    player_name_eng = ''
+    
+    try:
+        if country == '韓國':
+            # 韓國：用中文名查找英文名
+            player_info_match = df_mapping[df_mapping['球員中文名'] == player_name]
+            if len(player_info_match) > 0 and not pd.isna(player_info_match.iloc[0]['球員英文名']):
+                player_name_chinese = player_info_match.iloc[0]['球員中文名']
+                player_name_eng = player_info_match.iloc[0]['球員英文名']
+        elif country == '澳洲':
+            # 澳洲：用英文名查找中文名
+            player_info_match = df_mapping[df_mapping['球員英文名'] == player_name]
+            if len(player_info_match) > 0 and not pd.isna(player_info_match.iloc[0]['球員中文名']):
+                player_name_chinese = player_info_match.iloc[0]['球員中文名']
+                player_name_eng = player_info_match.iloc[0]['球員英文名']
+        elif country == '捷克':
+            # 捷克：用英文名查找中文名
+            player_info_match = df_mapping[df_mapping['球員英文名'] == player_name]
+            if len(player_info_match) > 0 and not pd.isna(player_info_match.iloc[0]['球員中文名']):
+                player_name_chinese = player_info_match.iloc[0]['球員中文名']
+                player_name_eng = player_info_match.iloc[0]['球員英文名']
+        elif country == '日本':
+            # 日本：用中文名查找英文名
+            player_info_match = df_mapping[df_mapping['球員中文名'] == player_name]
+            if len(player_info_match) > 0 and not pd.isna(player_info_match.iloc[0]['球員英文名']):
+                player_name_chinese = player_info_match.iloc[0]['球員中文名']
+                player_name_eng = player_info_match.iloc[0]['球員英文名']
+    except Exception as e:
+        print(f"獲取球員 {player_name} 的中英文名稱失敗: {e}")
+    
+    return player_name_chinese, player_name_eng
+
 def generate_batter_page1(batter_name='小園海斗', country='日本', df_all_players=None):
     """生成打者報告第一頁"""
     project_root = os.path.dirname(os.path.dirname(__file__))
@@ -87,9 +180,8 @@ def generate_batter_page1(batter_name='小園海斗', country='日本', df_all_p
     if len(df_player_stat) == 0:
         raise ValueError(f'找不到球員: {batter_name}')
     
-    # 球員名稱
-    player_name_chinese = batter_name
-    player_name_eng = ''  # 可以從資料庫或其他來源獲取
+    # 球員名稱（從中英文對照表獲取）
+    player_name_chinese, player_name_eng = get_player_names(batter_name, country)
     
     I1.text((30, 50), player_name_chinese, fill=(0, 0, 0), font=font)
     if player_name_eng:
@@ -247,9 +339,8 @@ def generate_batter_page2(batter_name='小園海斗', country='日本', df_cache
     except:
         font = ImageFont.load_default()
     
-    # 球員名稱
-    player_name_chinese = batter_name
-    player_name_eng = ''
+    # 球員名稱（從中英文對照表獲取）
+    player_name_chinese, player_name_eng = get_player_names(batter_name, country)
     
     I1.text((90, 10), player_name_chinese, fill=(0, 0, 0), font=font)
     if player_name_eng:
@@ -367,9 +458,8 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
     if len(df_player_stat) == 0:
         raise ValueError(f'找不到投手: {pitcher_name}')
     
-    # 球員名稱
-    player_name_chinese = pitcher_name
-    player_name_eng = ''
+    # 球員名稱（從中英文對照表獲取）
+    player_name_chinese, player_name_eng = get_player_names(pitcher_name, country)
     
     I1.text((30, 40), player_name_chinese, fill=(0, 0, 0), font=font)
     if player_name_eng:
@@ -654,9 +744,8 @@ def generate_pitcher_page2(pitcher_name='小園海斗', country='日本', df_cac
     except:
         font = ImageFont.load_default()
     
-    # 球員名稱
-    player_name_chinese = pitcher_name
-    player_name_eng = ''
+    # 球員名稱（從中英文對照表獲取）
+    player_name_chinese, player_name_eng = get_player_names(pitcher_name, country)
     
     I1.text((90, 10), player_name_chinese, fill=(0, 0, 0), font=font)
     if player_name_eng:
@@ -851,10 +940,19 @@ class handler(BaseHTTPRequestHandler):
                 with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
                     for player_name in players_list:
                         try:
+                            # 獲取球員的國家（從 df_all_players 中查找）
+                            player_country = '日本'  # 默認值
+                            if df_all_players is not None and len(df_all_players) > 0:
+                                player_row = df_all_players[df_all_players['球員'] == player_name]
+                                if len(player_row) > 0 and '國家' in player_row.columns:
+                                    country_val = player_row.iloc[0]['國家']
+                                    if not pd.isna(country_val):
+                                        player_country = country_val
+                            
                             # 根據角色生成不同的報告
                             if role_param == 'pitcher':
                                 # 投手：生成 Page 1 和 Page 2
-                                image_data_p1 = generate_pitcher_page1(player_name, '日本', df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
+                                image_data_p1 = generate_pitcher_page1(player_name, player_country, df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
                                 filename_p1 = f'{player_name}_完整報告p1.png'
                                 zip_file.writestr(filename_p1, image_data_p1)
                                 
@@ -868,7 +966,7 @@ class handler(BaseHTTPRequestHandler):
                                     if len(player_data) == 0:
                                         raise ValueError(f'找不到 {player_name} 在 cache_balls_stat 中的數據')
                                     
-                                    image_data_p2 = generate_pitcher_page2(player_name, '日本', df_cache_balls_stat)
+                                    image_data_p2 = generate_pitcher_page2(player_name, player_country, df_cache_balls_stat)
                                     filename_p2 = f'{player_name}_完整報告p2.png'
                                     zip_file.writestr(filename_p2, image_data_p2)
                                 except Exception as e2:
@@ -881,7 +979,7 @@ class handler(BaseHTTPRequestHandler):
                                     # 不 raise，讓 Page 1 保留在 ZIP 中
                             else:
                                 # 打者：生成 Page 1 和 Page 2
-                                image_data_p1 = generate_batter_page1(player_name, '日本', df_all_players)
+                                image_data_p1 = generate_batter_page1(player_name, player_country, df_all_players)
                                 filename_p1 = f'{player_name}_完整報告p1.png'
                                 zip_file.writestr(filename_p1, image_data_p1)
                                 
@@ -895,9 +993,7 @@ class handler(BaseHTTPRequestHandler):
                                     if len(player_data) == 0:
                                         raise ValueError(f'找不到 {player_name} 在 cache_balls_stat 中的數據')
                                     
-                                    image_data_p2 = generate_batter_page2(player_name, '日本', df_cache_balls_stat)
-                                    filename_p2 = f'{player_name}_完整報告p2.png'
-                                    zip_file.writestr(filename_p2, image_data_p2)
+                                    image_data_p2 = generate_batter_page2(player_name, player_country, df_cache_balls_stat)
                                 except Exception as e2:
                                     # Page 2 生成失敗，記錄錯誤但繼續（Page 1 已經寫入）
                                     import traceback
@@ -956,28 +1052,38 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(zip_data)
             else:
                 # 單個球員
+                player_name = players_list[0]
+                
+                # 獲取球員的國家
+                player_country = '日本'  # 默認值
+                if df_all_players is not None and len(df_all_players) > 0:
+                    player_row = df_all_players[df_all_players['球員'] == player_name]
+                    if len(player_row) > 0 and '國家' in player_row.columns:
+                        country_val = player_row.iloc[0]['國家']
+                        if not pd.isna(country_val):
+                            player_country = country_val
+                
                 if action == 'download':
                     # 下載模式：生成 ZIP 文件（打者包含 Page 1 和 Page 2）
                     zip_buffer = io.BytesIO()
                     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                        player_name = players_list[0]
                         try:
                             if role_param == 'pitcher':
                                 # 投手：生成 Page 1 和 Page 2
-                                image_data_p1 = generate_pitcher_page1(player_name, '日本', df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
+                                image_data_p1 = generate_pitcher_page1(player_name, player_country, df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
                                 filename_p1 = f'{player_name}_完整報告p1.png'
                                 zip_file.writestr(filename_p1, image_data_p1)
                                 
-                                image_data_p2 = generate_pitcher_page2(player_name, '日本', df_cache_balls_stat)
+                                image_data_p2 = generate_pitcher_page2(player_name, player_country, df_cache_balls_stat)
                                 filename_p2 = f'{player_name}_完整報告p2.png'
                                 zip_file.writestr(filename_p2, image_data_p2)
                             else:
                                 # 打者：生成 Page 1 和 Page 2
-                                image_data_p1 = generate_batter_page1(player_name, '日本', df_all_players)
+                                image_data_p1 = generate_batter_page1(player_name, player_country, df_all_players)
                                 filename_p1 = f'{player_name}_完整報告p1.png'
                                 zip_file.writestr(filename_p1, image_data_p1)
                                 
-                                image_data_p2 = generate_batter_page2(player_name, '日本', df_cache_balls_stat)
+                                image_data_p2 = generate_batter_page2(player_name, player_country, df_cache_balls_stat)
                                 filename_p2 = f'{player_name}_完整報告p2.png'
                                 zip_file.writestr(filename_p2, image_data_p2)
                         except Exception as e:
@@ -1003,17 +1109,17 @@ class handler(BaseHTTPRequestHandler):
                     if role_param == 'pitcher':
                         # 投手：支持 Page 1 和 Page 2
                         if page == '2':
-                            image_data = generate_pitcher_page2(players_list[0], '日本', df_cache_balls_stat)
+                            image_data = generate_pitcher_page2(player_name, player_country, df_cache_balls_stat)
                         else:
                             # 默認返回 Page 1
-                            image_data = generate_pitcher_page1(players_list[0], '日本', df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
+                            image_data = generate_pitcher_page1(player_name, player_country, df_all_players, df_cache_balls_stat, df_cache_balls_stat_pa)
                     else:
                         # 打者
                         if page == '2':
-                            image_data = generate_batter_page2(players_list[0], '日本', df_cache_balls_stat)
+                            image_data = generate_batter_page2(player_name, player_country, df_cache_balls_stat)
                         else:
                             # 默認返回 Page1
-                            image_data = generate_batter_page1(players_list[0], '日本', df_all_players)
+                            image_data = generate_batter_page1(player_name, player_country, df_all_players)
                     
                     # 設置響應頭
                     self.send_response(200)

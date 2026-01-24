@@ -59,32 +59,27 @@ def load_player_name_mapping():
     global _player_name_cache
     project_root = os.path.dirname(os.path.dirname(__file__))
     
-    try:
-        # 日本
-        jpn_path = os.path.join(project_root, '日本人中英文對照.xlsx')
-        if os.path.exists(jpn_path):
-            _player_name_cache['日本'] = pd.read_excel(jpn_path)
-            print(f"載入日本中英文對照表: {len(_player_name_cache['日本'])} 筆")
-        
-        # 韓國
-        kr_path = os.path.join(project_root, '韓國人中英文對照.xlsx')
-        if os.path.exists(kr_path):
-            _player_name_cache['韓國'] = pd.read_excel(kr_path)
-            print(f"載入韓國中英文對照表: {len(_player_name_cache['韓國'])} 筆")
-        
-        # 澳洲
-        aus_path = os.path.join(project_root, '澳洲人中英文對照.xlsx')
-        if os.path.exists(aus_path):
-            _player_name_cache['澳洲'] = pd.read_excel(aus_path)
-            print(f"載入澳洲中英文對照表: {len(_player_name_cache['澳洲'])} 筆")
-        
-        # 捷克
-        cze_path = os.path.join(project_root, '捷克人中英文對照.xlsx')
-        if os.path.exists(cze_path):
-            _player_name_cache['捷克'] = pd.read_excel(cze_path)
-            print(f"載入捷克中英文對照表: {len(_player_name_cache['捷克'])} 筆")
-    except Exception as e:
-        print(f"載入中英文對照表失敗: {e}")
+    country_files = {
+        '日本': '日本人中英文對照.xlsx',
+        '韓國': '韓國人中英文對照.xlsx',
+        '澳洲': '澳洲人中英文對照.xlsx',
+        '捷克': '捷克人中英文對照.xlsx'
+    }
+    
+    for country, filename in country_files.items():
+        try:
+            file_path = os.path.join(project_root, filename)
+            if os.path.exists(file_path):
+                _player_name_cache[country] = pd.read_excel(file_path)
+                print(f"載入{country}中英文對照表: {len(_player_name_cache[country])} 筆")
+            else:
+                print(f"找不到{country}中英文對照表: {file_path}")
+                _player_name_cache[country] = pd.DataFrame()  # 空的 DataFrame
+        except Exception as e:
+            import traceback
+            print(f"載入{country}中英文對照表失敗: {e}")
+            print(traceback.format_exc())
+            _player_name_cache[country] = pd.DataFrame()  # 載入失敗時使用空 DataFrame
 
 def get_player_names(player_name, country):
     """
@@ -97,45 +92,50 @@ def get_player_names(player_name, country):
     Returns:
         (player_name_chinese, player_name_eng): 中英文名稱元組
     """
-    # 如果對照表未載入，先載入
-    if all(v is None for v in _player_name_cache.values()):
-        load_player_name_mapping()
-    
-    df_mapping = _player_name_cache.get(country)
-    
-    if df_mapping is None or len(df_mapping) == 0:
-        return player_name, ''
-    
+    # 默認值：返回原始名稱，無英文名
     player_name_chinese = player_name
     player_name_eng = ''
     
     try:
-        if country == '韓國':
-            # 韓國：用中文名查找英文名
+        # 如果對照表未載入，先載入
+        if all(v is None for v in _player_name_cache.values()):
+            load_player_name_mapping()
+        
+        df_mapping = _player_name_cache.get(country)
+        
+        # 如果沒有對應的對照表或為空，返回默認值
+        if df_mapping is None or len(df_mapping) == 0:
+            return player_name_chinese, player_name_eng
+        
+        # 檢查欄位是否存在
+        if '球員中文名' not in df_mapping.columns or '球員英文名' not in df_mapping.columns:
+            print(f"對照表欄位不正確，期望 '球員中文名' 和 '球員英文名'，實際: {df_mapping.columns.tolist()}")
+            return player_name_chinese, player_name_eng
+        
+        if country == '韓國' or country == '日本':
+            # 韓國、日本：用中文名查找英文名
             player_info_match = df_mapping[df_mapping['球員中文名'] == player_name]
-            if len(player_info_match) > 0 and not pd.isna(player_info_match.iloc[0]['球員英文名']):
-                player_name_chinese = player_info_match.iloc[0]['球員中文名']
-                player_name_eng = player_info_match.iloc[0]['球員英文名']
-        elif country == '澳洲':
-            # 澳洲：用英文名查找中文名
+            if len(player_info_match) > 0:
+                chinese_val = player_info_match.iloc[0]['球員中文名']
+                eng_val = player_info_match.iloc[0]['球員英文名']
+                if not pd.isna(chinese_val):
+                    player_name_chinese = chinese_val
+                if not pd.isna(eng_val):
+                    player_name_eng = eng_val
+        elif country == '澳洲' or country == '捷克':
+            # 澳洲、捷克：用英文名查找中文名
             player_info_match = df_mapping[df_mapping['球員英文名'] == player_name]
-            if len(player_info_match) > 0 and not pd.isna(player_info_match.iloc[0]['球員中文名']):
-                player_name_chinese = player_info_match.iloc[0]['球員中文名']
-                player_name_eng = player_info_match.iloc[0]['球員英文名']
-        elif country == '捷克':
-            # 捷克：用英文名查找中文名
-            player_info_match = df_mapping[df_mapping['球員英文名'] == player_name]
-            if len(player_info_match) > 0 and not pd.isna(player_info_match.iloc[0]['球員中文名']):
-                player_name_chinese = player_info_match.iloc[0]['球員中文名']
-                player_name_eng = player_info_match.iloc[0]['球員英文名']
-        elif country == '日本':
-            # 日本：用中文名查找英文名
-            player_info_match = df_mapping[df_mapping['球員中文名'] == player_name]
-            if len(player_info_match) > 0 and not pd.isna(player_info_match.iloc[0]['球員英文名']):
-                player_name_chinese = player_info_match.iloc[0]['球員中文名']
-                player_name_eng = player_info_match.iloc[0]['球員英文名']
+            if len(player_info_match) > 0:
+                chinese_val = player_info_match.iloc[0]['球員中文名']
+                eng_val = player_info_match.iloc[0]['球員英文名']
+                if not pd.isna(chinese_val):
+                    player_name_chinese = chinese_val
+                if not pd.isna(eng_val):
+                    player_name_eng = eng_val
     except Exception as e:
-        print(f"獲取球員 {player_name} 的中英文名稱失敗: {e}")
+        import traceback
+        print(f"獲取球員 {player_name} ({country}) 的中英文名稱失敗: {e}")
+        print(traceback.format_exc())
     
     return player_name_chinese, player_name_eng
 
@@ -818,6 +818,16 @@ class handler(BaseHTTPRequestHandler):
         try:
             import urllib.parse
             import json
+            
+            # 預先載入中英文對照表（如果尚未載入）
+            try:
+                if all(v is None for v in _player_name_cache.values()):
+                    print("開始載入中英文對照表...")
+                    load_player_name_mapping()
+                    print("中英文對照表載入完成")
+            except Exception as e:
+                print(f"載入中英文對照表時發生錯誤（將繼續執行）: {e}")
+            
             # 解析查詢參數
             parsed_path = urllib.parse.urlparse(self.path)
             query_params = urllib.parse.parse_qs(parsed_path.query)
@@ -845,6 +855,8 @@ class handler(BaseHTTPRequestHandler):
             )
             
             # 根據角色選擇資料表
+            print(f"查詢球員: {players_list}, 角色: {role_param}")
+            
             if role_param == 'pitcher':
                 table_name = 'Stonk_pitcher'
                 # 查詢投手基本資料
@@ -854,6 +866,9 @@ class handler(BaseHTTPRequestHandler):
                     query = text(f"SELECT * FROM {table_name} WHERE 球員 IN ({placeholders})")
                     params = {f'player_{i}': player for i, player in enumerate(players_list)}
                     df_all_players = pd.read_sql(query, conn, params=params)
+                    print(f"從 {table_name} 查詢到 {len(df_all_players)} 筆資料")
+                    if len(df_all_players) > 0 and '國家' in df_all_players.columns:
+                        print(f"球員國家: {df_all_players[['球員', '國家']].to_dict('records')}")
                 
                 # 查詢 cache_balls_stat（所有投手共用）
                 with engine.connect() as conn:
@@ -940,14 +955,21 @@ class handler(BaseHTTPRequestHandler):
                 with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
                     for player_name in players_list:
                         try:
+                            print(f"開始處理球員: {player_name}")
+                            
                             # 獲取球員的國家（從 df_all_players 中查找）
                             player_country = '日本'  # 默認值
                             if df_all_players is not None and len(df_all_players) > 0:
                                 player_row = df_all_players[df_all_players['球員'] == player_name]
+                                print(f"在 df_all_players 中找到 {len(player_row)} 筆 {player_name} 的資料")
                                 if len(player_row) > 0 and '國家' in player_row.columns:
                                     country_val = player_row.iloc[0]['國家']
                                     if not pd.isna(country_val):
                                         player_country = country_val
+                            else:
+                                print(f"df_all_players 為空或 None")
+                            
+                            print(f"球員 {player_name} 的國家: {player_country}")
                             
                             # 根據角色生成不同的報告
                             if role_param == 'pitcher':

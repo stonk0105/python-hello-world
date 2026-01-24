@@ -46,40 +46,27 @@ _db_cache = {
     'cache_balls_stat_pa': None
 }
 
-# 讀取中英文對照表
-_player_name_cache = {
-    '日本': None,
-    '韓國': None,
-    '澳洲': None,
-    '捷克': None
-}
+# 讀取中英文對照表（合併後的單一文件）
+_player_name_df = None
 
 def load_player_name_mapping():
-    """載入各國球員中英文對照表"""
-    global _player_name_cache
+    """載入球員中英文對照表（合併後的單一文件）"""
+    global _player_name_df
     project_root = os.path.dirname(os.path.dirname(__file__))
     
-    country_files = {
-        '日本': '日本人中英文對照.xlsx',
-        '韓國': '韓國人中英文對照.xlsx',
-        '澳洲': '澳洲人中英文對照.xlsx',
-        '捷克': '捷克人中英文對照.xlsx'
-    }
-    
-    for country, filename in country_files.items():
-        try:
-            file_path = os.path.join(project_root, filename)
-            if os.path.exists(file_path):
-                _player_name_cache[country] = pd.read_excel(file_path)
-                print(f"載入{country}中英文對照表: {len(_player_name_cache[country])} 筆")
-            else:
-                print(f"找不到{country}中英文對照表: {file_path}")
-                _player_name_cache[country] = pd.DataFrame()  # 空的 DataFrame
-        except Exception as e:
-            import traceback
-            print(f"載入{country}中英文對照表失敗: {e}")
-            print(traceback.format_exc())
-            _player_name_cache[country] = pd.DataFrame()  # 載入失敗時使用空 DataFrame
+    try:
+        file_path = os.path.join(project_root, '球員中英文對照.xlsx')
+        if os.path.exists(file_path):
+            _player_name_df = pd.read_excel(file_path)
+            print(f"載入中英文對照表: {len(_player_name_df)} 筆")
+        else:
+            print(f"找不到中英文對照表: {file_path}")
+            _player_name_df = pd.DataFrame()
+    except Exception as e:
+        import traceback
+        print(f"載入中英文對照表失敗: {e}")
+        print(traceback.format_exc())
+        _player_name_df = pd.DataFrame()
 
 def get_player_names(player_name, country):
     """
@@ -92,29 +79,36 @@ def get_player_names(player_name, country):
     Returns:
         (player_name_chinese, player_name_eng): 中英文名稱元組
     """
+    global _player_name_df
+    
     # 默認值：返回原始名稱，無英文名
     player_name_chinese = player_name
     player_name_eng = ''
     
     try:
         # 如果對照表未載入，先載入
-        if all(v is None for v in _player_name_cache.values()):
+        if _player_name_df is None:
             load_player_name_mapping()
         
-        df_mapping = _player_name_cache.get(country)
-        
-        # 如果沒有對應的對照表或為空，返回默認值
-        if df_mapping is None or len(df_mapping) == 0:
+        # 如果對照表為空，返回默認值
+        if _player_name_df is None or len(_player_name_df) == 0:
             return player_name_chinese, player_name_eng
         
         # 檢查欄位是否存在
-        if '球員中文名' not in df_mapping.columns or '球員英文名' not in df_mapping.columns:
-            print(f"對照表欄位不正確，期望 '球員中文名' 和 '球員英文名'，實際: {df_mapping.columns.tolist()}")
+        required_cols = ['國家', '球員中文名', '球員英文名']
+        if not all(col in _player_name_df.columns for col in required_cols):
+            print(f"對照表欄位不正確，期望 {required_cols}，實際: {_player_name_df.columns.tolist()}")
+            return player_name_chinese, player_name_eng
+        
+        # 根據國家篩選
+        df_country = _player_name_df[_player_name_df['國家'] == country]
+        
+        if len(df_country) == 0:
             return player_name_chinese, player_name_eng
         
         if country == '韓國' or country == '日本':
             # 韓國、日本：用中文名查找英文名
-            player_info_match = df_mapping[df_mapping['球員中文名'] == player_name]
+            player_info_match = df_country[df_country['球員中文名'] == player_name]
             if len(player_info_match) > 0:
                 chinese_val = player_info_match.iloc[0]['球員中文名']
                 eng_val = player_info_match.iloc[0]['球員英文名']
@@ -124,7 +118,7 @@ def get_player_names(player_name, country):
                     player_name_eng = eng_val
         elif country == '澳洲' or country == '捷克':
             # 澳洲、捷克：用英文名查找中文名
-            player_info_match = df_mapping[df_mapping['球員英文名'] == player_name]
+            player_info_match = df_country[df_country['球員英文名'] == player_name]
             if len(player_info_match) > 0:
                 chinese_val = player_info_match.iloc[0]['球員中文名']
                 eng_val = player_info_match.iloc[0]['球員英文名']
@@ -821,7 +815,7 @@ class handler(BaseHTTPRequestHandler):
             
             # 預先載入中英文對照表（如果尚未載入）
             try:
-                if all(v is None for v in _player_name_cache.values()):
+                if _player_name_df is None:
                     print("開始載入中英文對照表...")
                     load_player_name_mapping()
                     print("中英文對照表載入完成")

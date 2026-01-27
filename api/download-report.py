@@ -270,7 +270,7 @@ def generate_batter_page2(batter_name='小園海斗', country='日本', df_cache
         raise ValueError(f'找不到球員 {batter_name} 的比賽數據')
     
     # 處理數據（這些操作是冪等的，即使數據已經處理過也不會出錯）
-    bb_BallsStat_Bungee['Batter'].replace('Erisbel Arruebarruena', 'Erisbel Arruebarrena', inplace=True)
+    bb_BallsStat_Bungee['Batter'] = bb_BallsStat_Bungee['Batter'].replace('Erisbel Arruebarruena', 'Erisbel Arruebarrena')
     bb_BallsStat_Bungee['APP_KZoneY'] = pd.to_numeric(bb_BallsStat_Bungee['APP_KZoneY'], errors='coerce')
     bb_BallsStat_Bungee['APP_KZoneZ'] = pd.to_numeric(bb_BallsStat_Bungee['APP_KZoneZ'], errors='coerce')
     bb_BallsStat_Bungee['APP_VeloRel'] = pd.to_numeric(bb_BallsStat_Bungee['APP_VeloRel'], errors='coerce')
@@ -1010,6 +1010,8 @@ class handler(BaseHTTPRequestHandler):
                                         raise ValueError(f'找不到 {player_name} 在 cache_balls_stat 中的數據')
                                     
                                     image_data_p2 = generate_batter_page2(player_name, player_country, df_cache_balls_stat)
+                                    filename_p2 = f'{player_name}_完整報告p2.png'
+                                    zip_file.writestr(filename_p2, image_data_p2)
                                 except Exception as e2:
                                     # Page 2 生成失敗，記錄錯誤但繼續（Page 1 已經寫入）
                                     import traceback

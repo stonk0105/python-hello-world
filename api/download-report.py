@@ -133,7 +133,7 @@ def get_player_names(player_name, country):
     
     return player_name_chinese, player_name_eng
 
-def generate_batter_page1(batter_name='小園海斗', country='日本', df_all_players=None):
+def generate_batter_page1(batter_name='小園海斗', country='日本', df_all_players=None, df_cache_balls_stat_pa=None):
     """生成打者報告第一頁"""
     project_root = os.path.dirname(os.path.dirname(__file__))
     
@@ -189,6 +189,22 @@ def generate_batter_page1(batter_name='小園海斗', country='日本', df_all_p
     if not pd.isna(df_player_stat.at[0, '身高']) and not pd.isna(df_player_stat.at[0, '體重']):
         height_weight = f"{int(df_player_stat.at[0, '身高'])}cm {int(df_player_stat.at[0, '體重'])}kg"
         I1.text((235, 180), height_weight, fill=(255, 255, 255), font=ImageFont.truetype(font_path, 14) if os.path.exists(font_path) else font)
+    
+    # 如果 AVG 相關欄位為空，則從 cache_balls_stat（PA_Result 不為空）計算；打者以 PT 區分右投(RHP)/左投(LHP)
+    df_player_each_PA = None
+    if df_cache_balls_stat_pa is not None:
+        df_player_each_PA = df_cache_balls_stat_pa[df_cache_balls_stat_pa['Batter'] == batter_name].reset_index(drop=True)
+    if AVG is not None and df_player_each_PA is not None and len(df_player_each_PA) > 0:
+        if 'AVG' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'AVG']):
+            df_player_stat.at[0, 'AVG'] = AVG(df_player_each_PA)
+        if 'AVG_RHP' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'AVG_RHP']):
+            df_player_rhp = df_player_each_PA[df_player_each_PA['PT'] == 0].reset_index(drop=True)
+            if len(df_player_rhp) > 0:
+                df_player_stat.at[0, 'AVG_RHP'] = AVG(df_player_rhp)
+        if 'AVG_LHP' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'AVG_LHP']):
+            df_player_lhp = df_player_each_PA[df_player_each_PA['PT'] == 1].reset_index(drop=True)
+            if len(df_player_lhp) > 0:
+                df_player_stat.at[0, 'AVG_LHP'] = AVG(df_player_lhp)
     
     # 打擊率區塊
     AVG_list = ['AVG', 'AVG_RHP', 'AVG_LHP', 'OPS', 'OBP', 'SLG', 'K百分比', 'BB百分比']
@@ -937,7 +953,19 @@ class handler(BaseHTTPRequestHandler):
                         print(f'警告: 處理後找不到有效的 cache_balls_stat 數據')
                     else:
                         print(f'處理後剩餘 {len(df_cache_balls_stat)} 筆有效數據')
-                df_cache_balls_stat_pa = None
+                
+                # 查詢 cache_balls_stat_pa（打者 Page 1 的 AVG/AVG_RHP/AVG_LHP 計算用）
+                with engine.connect() as conn:
+                    from sqlalchemy import text
+                    placeholders = ','.join([f':player_{i}' for i in range(len(players_list))])
+                    query = text(f"""
+                        SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
+                        FROM cache_balls_stat
+                        WHERE PA_Result IS NOT NULL AND PA_Result != ''
+                        AND Batter IN ({placeholders})
+                    """)
+                    params = {f'player_{i}': player for i, player in enumerate(players_list)}
+                    df_cache_balls_stat_pa = pd.read_sql(query, conn, params=params)
             
             # 如果有多個球員，生成 ZIP 文件
             if len(players_list) >= 1:
@@ -995,7 +1023,7 @@ class handler(BaseHTTPRequestHandler):
                                     # 不 raise，讓 Page 1 保留在 ZIP 中
                             else:
                                 # 打者：生成 Page 1 和 Page 2
-                                image_data_p1 = generate_batter_page1(player_name, player_country, df_all_players)
+                                image_data_p1 = generate_batter_page1(player_name, player_country, df_all_players, df_cache_balls_stat_pa)
                                 filename_p1 = f'{player_name}_完整報告p1.png'
                                 zip_file.writestr(filename_p1, image_data_p1)
                                 
@@ -1097,7 +1125,7 @@ class handler(BaseHTTPRequestHandler):
                                 zip_file.writestr(filename_p2, image_data_p2)
                             else:
                                 # 打者：生成 Page 1 和 Page 2
-                                image_data_p1 = generate_batter_page1(player_name, player_country, df_all_players)
+                                image_data_p1 = generate_batter_page1(player_name, player_country, df_all_players, df_cache_balls_stat_pa)
                                 filename_p1 = f'{player_name}_完整報告p1.png'
                                 zip_file.writestr(filename_p1, image_data_p1)
                                 
@@ -1137,7 +1165,7 @@ class handler(BaseHTTPRequestHandler):
                             image_data = generate_batter_page2(player_name, player_country, df_cache_balls_stat)
                         else:
                             # 默認返回 Page1
-                            image_data = generate_batter_page1(player_name, player_country, df_all_players)
+                            image_data = generate_batter_page1(player_name, player_country, df_all_players, df_cache_balls_stat_pa)
                     
                     # 設置響應頭
                     self.send_response(200)

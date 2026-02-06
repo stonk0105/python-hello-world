@@ -627,8 +627,15 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
             df_player_taggedpitchtype_R = df_player[(df_player['TaggedPitchType'] == taggedpitchtype) & (df_player['BatS'] == 0)].reset_index(drop=True)
             df_player_taggedpitchtype_L = df_player[(df_player['TaggedPitchType'] == taggedpitchtype) & (df_player['BatS'] == 1)].reset_index(drop=True)
             
-            speed = round(df_player_taggedpitchtype['APP_VeloRel'].mean(), 1) if len(df_player_taggedpitchtype) > 0 else None
-            Max_speed = round(df_player_taggedpitchtype['APP_VeloRel'].max(), 1) if len(df_player_taggedpitchtype) > 0 else None
+            velo = df_player_taggedpitchtype['APP_VeloRel'].dropna()
+            velo = velo[velo != 0]
+
+            speed = round(velo.mean(), 1) if not velo.empty else None
+            Max_speed = round(velo.max(), 1) if not velo.empty else None
+
+            
+            #speed = round(df_player_taggedpitchtype['APP_VeloRel'].mean(), 1) if len(df_player_taggedpitchtype) > 0 else None
+            #Max_speed = round(df_player_taggedpitchtype['APP_VeloRel'].max(), 1) if len(df_player_taggedpitchtype) > 0 else None
             
             try:
                 total_usage = f"{round(len(df_player_taggedpitchtype_R) / len(df_player_R) * 100, 1) if len(df_player_R) > 0 else 0} / {round(len(df_player_taggedpitchtype_L) / len(df_player_L) * 100, 1) if len(df_player_L) > 0 else 0}"

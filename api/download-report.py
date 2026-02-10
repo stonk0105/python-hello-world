@@ -55,7 +55,7 @@ def load_player_name_mapping():
     project_root = os.path.dirname(os.path.dirname(__file__))
     
     try:
-        file_path = os.path.join(project_root, '球員中英文對照.xlsx')
+        file_path = os.path.join(project_root, '球員中英文對照（更新）.xlsx')
         if os.path.exists(file_path):
             _player_name_df = pd.read_excel(file_path)
             print(f"載入中英文對照表: {len(_player_name_df)} 筆")

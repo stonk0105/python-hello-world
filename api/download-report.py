@@ -116,7 +116,7 @@ def get_player_names(player_name, country):
                     player_name_chinese = chinese_val
                 if not pd.isna(eng_val):
                     player_name_eng = eng_val
-        elif country == '澳洲' or country == '捷克':
+        else:
             # 澳洲、捷克：用英文名查找中文名
             player_info_match = df_country[df_country['球員英文名'] == player_name]
             if len(player_info_match) > 0:

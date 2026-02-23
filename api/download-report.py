@@ -112,7 +112,7 @@ def get_player_names(player_name, country):
                 return False
             return any('\u4e00' <= c <= '\u9fff' for c in str(s))
         
-        if _is_chinese_name(player_name):
+        if country == '日本' or country == '韓國':
             # 名稱是中文：用球員中文名查找
             player_info_match = df_country[df_country['球員中文名'] == player_name]
             if len(player_info_match) > 0:

@@ -106,11 +106,6 @@ def get_player_names(player_name, country):
         if len(df_country) == 0:
             return player_name_chinese, player_name_eng
         
-        # 依輸入名稱是中文或英文決定用哪一欄查詢
-        def _is_chinese_name(s):
-            if not s or pd.isna(s):
-                return False
-            return any('\u4e00' <= c <= '\u9fff' for c in str(s))
         
         if country == '日本' or country == '韓國':
             # 名稱是中文：用球員中文名查找

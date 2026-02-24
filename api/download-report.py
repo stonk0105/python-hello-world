@@ -278,7 +278,7 @@ def generate_batter_page2(batter_name='小園海斗', country='日本', df_cache
             query = text("""
                 SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
                 FROM cache_balls_stat
-                WHERE PitchCode IN ('Strk-C','Strk-S','Ball','Foul','In-Play','Inplay','IBB','Ball-B-I','Ball-Ill-Pi','Strk-PN','Ball-PN')
+                WHERE PitchCode IN ('Strk-C','Strk-S','Ball','Foul','In-Play','Inplay','IBB','Ball-B-I','Ball-Ill-Pi','Strk-PN','Ball-PN') AND Pitcherid != '696270'
                 AND Batter = :batter_name
             """)
             bb_BallsStat_Bungee = pd.read_sql(query, conn, params={'batter_name': batter_name})
@@ -462,7 +462,7 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
             query = text("""
                 SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
                 FROM cache_balls_stat
-                WHERE PA_Result IS NOT NULL AND PA_Result != '' AND Pitcher = :pitcher_name
+                WHERE PA_Result IS NOT NULL AND PA_Result != '' AND Pitcher = :pitcher_name AND Pitcherid != '696270'
             """)
             df_player_each_PA = pd.read_sql(query, conn, params={'pitcher_name': pitcher_name})
     
@@ -596,7 +596,7 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
             query = text("""
                 SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
                 FROM cache_balls_stat
-                WHERE PitchCode IN ('Strk-C','Strk-S','Ball','Foul','In-Play','Inplay','IBB','Ball-B-I','Ball-Ill-Pi','Strk-PN','Ball-PN')
+                WHERE PitchCode IN ('Strk-C','Strk-S','Ball','Foul','In-Play','Inplay','IBB','Ball-B-I','Ball-Ill-Pi','Strk-PN','Ball-PN') AND Pitcherid != '696270'
                 AND Pitcher = :pitcher_name
             """)
             df_player = pd.read_sql(query, conn, params={'pitcher_name': pitcher_name})
@@ -714,7 +714,7 @@ def generate_pitcher_page2(pitcher_name='小園海斗', country='日本', df_cac
             query = text("""
                 SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
                 FROM cache_balls_stat
-                WHERE PitchCode IN ('Strk-C','Strk-S','Ball','Foul','In-Play','Inplay','IBB','Ball-B-I','Ball-Ill-Pi','Strk-PN','Ball-PN')
+                WHERE PitchCode IN ('Strk-C','Strk-S','Ball','Foul','In-Play','Inplay','IBB','Ball-B-I','Ball-Ill-Pi','Strk-PN','Ball-PN') AND Pitcherid != '696270'
                 AND Pitcher = :pitcher_name
             """)
             df_player = pd.read_sql(query, conn, params={'pitcher_name': pitcher_name})
@@ -896,7 +896,7 @@ class handler(BaseHTTPRequestHandler):
                     query = text(f"""
                         SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
                         FROM cache_balls_stat
-                        WHERE PitchCode IN ('Strk-C','Strk-S','Ball','Foul','In-Play','Inplay','IBB','Ball-B-I','Ball-Ill-Pi','Strk-PN','Ball-PN')
+                        WHERE PitchCode IN ('Strk-C','Strk-S','Ball','Foul','In-Play','Inplay','IBB','Ball-B-I','Ball-Ill-Pi','Strk-PN','Ball-PN') AND Pitcherid != '696270'
                         AND Pitcher IN ({placeholders})
                     """)
                     params = {f'player_{i}': player for i, player in enumerate(players_list)}
@@ -914,7 +914,7 @@ class handler(BaseHTTPRequestHandler):
                     query = text(f"""
                         SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
                         FROM cache_balls_stat
-                        WHERE PA_Result IS NOT NULL AND PA_Result != ''
+                        WHERE PA_Result IS NOT NULL AND PA_Result != '' AND Pitcherid != '696270'
                         AND Pitcher IN ({placeholders})
                     """)
                     params = {f'player_{i}': player for i, player in enumerate(players_list)}
@@ -936,7 +936,7 @@ class handler(BaseHTTPRequestHandler):
                     query = text(f"""
                         SELECT _id, Date, Pitcher, Pitcherid, PT, Batter, Batterid, BatS, BS, PitchCode, `On-Base`, PA_Result, HitType, HardnessTag, TaggedPitchType, APP_KZoneY, APP_KZoneZ, APP_VeloRel, Zone, OZone, LocX, LocY, League
                         FROM cache_balls_stat
-                        WHERE PitchCode IN ('Strk-C','Strk-S','Ball','Foul','In-Play','Inplay','IBB','Ball-B-I','Ball-Ill-Pi','Strk-PN','Ball-PN')
+                        WHERE PitchCode IN ('Strk-C','Strk-S','Ball','Foul','In-Play','Inplay','IBB','Ball-B-I','Ball-Ill-Pi','Strk-PN','Ball-PN') AND Pitcherid != '696270'
                         AND Batter IN ({placeholders})
                     """)
                     params = {f'player_{i}': player for i, player in enumerate(players_list)}

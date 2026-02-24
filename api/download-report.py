@@ -498,6 +498,12 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
             if len(df_player_LHB) > 0:
                 df_player_stat.at[0, 'AVG_LHB'] = AVG(df_player_LHB)
     
+    # WHIP 取到小數點後2位
+    if WHIP is not None and len(df_player_each_PA) > 0:
+        df_player_stat.at[0, 'WHIP'] = f"{float(df_player_stat.at[0, 'WHIP']):.2f}"
+    else:
+        df_player_stat.at[0, 'WHIP'] = '---'
+    
     # K% 區塊 - 對照資料表欄位名稱
     # 資料表欄位：K百分比, BB百分比, WHIP, AVG, AVG_RHB, AVG_LHB
     # 嘗試多種可能的欄位名稱格式

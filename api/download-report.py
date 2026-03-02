@@ -613,8 +613,14 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
         
         # 計算每個球路出現的次數
         pitchtype_counts = df_player['TaggedPitchType'].value_counts().to_dict()
-        taggedpitchtype_list = sorted(pitchtype_counts, key=pitchtype_counts.get, reverse=True)
-        taggedpitchtype_list = taggedpitchtype_list if len(taggedpitchtype_list) <= 5 else taggedpitchtype_list[:5]
+        total_pitches = sum(pitchtype_counts.values())
+        # 只保留比例 >= 1% 的球種
+        if total_pitches > 0:
+            taggedpitchtype_list = [pt for pt in pitchtype_counts if pitchtype_counts[pt] / total_pitches >= 0.01]
+            taggedpitchtype_list = sorted(taggedpitchtype_list, key=pitchtype_counts.get, reverse=True)
+            taggedpitchtype_list = taggedpitchtype_list if len(taggedpitchtype_list) <= 5 else taggedpitchtype_list[:5]
+        else:
+            taggedpitchtype_list = []
         
         for i in range(len(taggedpitchtype_list)):
             taggedpitchtype = taggedpitchtype_list[i]

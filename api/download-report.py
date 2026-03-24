@@ -502,6 +502,9 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
     if K_P is not None and len(df_player_each_PA) > 0:
         if 'K百分比' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'K百分比']):
             df_player_stat.at[0, 'K百分比'] = str(K_P(df_player_each_PA)) + '%'
+    if BB_P is not None and len(df_player_each_PA) > 0:
+        if 'BB百分比' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'BB百分比']):
+            df_player_stat.at[0, 'BB百分比'] = str(BB_P(df_player_each_PA)) + '%'
             
     # K% 區塊 - 對照資料表欄位名稱
     # 資料表欄位：K百分比, BB百分比, WHIP, AVG, AVG_RHB, AVG_LHB
@@ -532,6 +535,16 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
             I1.text((22 + 47 * i, 235), display_value, fill=(0, 0, 0), font=statistic_font)
         else:
             I1.text((22 + 46 * (i - 3), 280), display_value, fill=(0, 0, 0), font=statistic_font)
+            
+    if BB_N is not None and len(df_player_each_PA) > 0:
+        if 'BB' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'BB']):
+            df_player_stat.at[0, 'BB'] = (BB_P(df_player_each_PA))
+    if K_N is not None and len(df_player_each_PA) > 0:
+        if 'K' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'K']):
+            df_player_stat.at[0, 'K'] = (K_N(df_player_each_PA))
+    if H_N is not None and len(df_player_each_PA) > 0:
+        if 'H' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'H']):
+            df_player_stat.at[0, 'H'] = (H_N(df_player_each_PA))
     
     # ERA 區塊 - 對照資料表欄位名稱
     # 資料表欄位：ERA, IP, W_L, G_SP, H, 中繼, 後援, SO, BB, K_9, BB_9

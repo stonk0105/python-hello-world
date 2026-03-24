@@ -549,12 +549,12 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
     if len(df_player_each_PA) > 0:
         if 'BB' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'BB']):
             df_player_stat.at[0, 'BB'] = str(BB_N(df_player_each_PA))
-    #if K_N is not None and len(df_player_each_PA) > 0:
-     #   if 'SO' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'SO']):
-      #      df_player_stat.at[0, 'SO'] = (K_N(df_player_each_PA))
-    #if H_N is not None and len(df_player_each_PA) > 0:
-     #   if 'H' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'H']):
-      #      df_player_stat.at[0, 'H'] = (H_N(df_player_each_PA))
+    if len(df_player_each_PA) > 0:
+        if 'SO' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'SO']):
+            df_player_stat.at[0, 'SO'] = str(K_N(df_player_each_PA))
+    if len(df_player_each_PA) > 0:
+        if 'H' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'H']):
+            df_player_stat.at[0, 'H'] = str(H_N(df_player_each_PA))
     
     # ERA 區塊 - 對照資料表欄位名稱
     # 資料表欄位：ERA, IP, W_L, G_SP, H, 中繼, 後援, SO, BB, K_9, BB_9

@@ -500,8 +500,8 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
                 
     # 如果 K% 相關欄位為空，則從 cache_balls_stat 計算
     if K_P is not None and len(df_player_each_PA) > 0:
-        if 'K%' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'K%']):
-            df_player_stat.at[0, 'K%'] = K_P(df_player_each_PA)
+        if 'K百分比' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'K百分比']):
+            df_player_stat.at[0, 'K百分比'] = K_P(df_player_each_PA)
             
     # K% 區塊 - 對照資料表欄位名稱
     # 資料表欄位：K百分比, BB百分比, WHIP, AVG, AVG_RHB, AVG_LHB

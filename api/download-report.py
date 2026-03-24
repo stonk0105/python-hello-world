@@ -538,10 +538,10 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
             
     if BB_N is not None and len(df_player_each_PA) > 0:
         if 'BB' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'BB']):
-            df_player_stat.at[0, 'BB'] = (BB_P(df_player_each_PA))
+            df_player_stat.at[0, 'BB'] = (BB_N(df_player_each_PA))
     if K_N is not None and len(df_player_each_PA) > 0:
-        if 'K' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'K']):
-            df_player_stat.at[0, 'K'] = (K_N(df_player_each_PA))
+        if 'SO' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'SO']):
+            df_player_stat.at[0, 'SO'] = (K_N(df_player_each_PA))
     if H_N is not None and len(df_player_each_PA) > 0:
         if 'H' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'H']):
             df_player_stat.at[0, 'H'] = (H_N(df_player_each_PA))

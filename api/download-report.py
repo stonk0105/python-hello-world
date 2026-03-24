@@ -499,7 +499,7 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
                 df_player_stat.at[0, 'AVG_LHB'] = AVG(df_player_LHB)
                 
     # 如果 K% 相關欄位為空，則從 cache_balls_stat 計算
-    if 'K%' is not None and len(df_player_each_PA) > 0:
+    if K_P is not None and len(df_player_each_PA) > 0:
         if 'K%' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'K%']):
             df_player_stat.at[0, 'K%'] = K_P(df_player_each_PA)
             

@@ -31,12 +31,15 @@ try:
     sys.path.insert(0, os.path.join(project_root, 'Label_Data'))
     from Toolbox import *
     # 確保 AVG 函數被導入
-    from Toolbox import AVG, RISPAVG, GB_FB
+    from Toolbox import AVG, RISPAVG, GB_FB, BB_N, K_N, H_N
 except ImportError as e:
     print(f"Warning: Could not import Toolbox: {e}")
     AVG = None
     RISPAVG = None
     GB_FB = None
+    BB_N = None
+    K_N = None
+    H_N = None
 
 # 資料庫緩存（避免重複查詢）
 _db_cache = {

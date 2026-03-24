@@ -11,15 +11,6 @@ def AB_N(df):
 def PA_N(df):
     PA = len(df[(~df['PA_Result'].isin(['']))&(~df['PA_Result'].isnull())])
     return PA
-def K_N(df):
-    k = len(df[df['PA_Result'].isin(['K', 'Ks', 'K-DO', 'K-BS', 'K-BF', 'K-DS','K-SF','K-P'])])
-    return str(k)
-def BB_N(df):
-    bb = len(df[df['PA_Result'].isin(['BB', 'BB-I', 'BB-IL', 'IBB', 'HBP','BB-P'])])
-    return str(bb)
-def H_N(df):
-    hit = len(df[df["PA_Result"].isin(['1B', '2B', '3B', 'HR', 'IHR'])])
-    return str(hit)
 def AVG(df):
     hit = len(df[df["PA_Result"].isin(['1B', '2B', '3B', 'HR', 'IHR'])])
     AB = len(df[df['PA_Result'].isin(['1B', '2B', '3B', 'HR', 'IHR', 'DP', 'E-C', 'E-T', 'F', 'FC', 'FOT', 'G', 'G-', 'GT', 'IF', 'INT', 'K','K-BF','K-DO','K-BS', 'K-DS','Ks','K-SF','LO','K-P'])])

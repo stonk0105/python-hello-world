@@ -31,15 +31,22 @@ try:
     sys.path.insert(0, os.path.join(project_root, 'Label_Data'))
     from Toolbox import *
     # 確保 AVG 函數被導入
-    from Toolbox import AVG, RISPAVG, GB_FB, BB_N, K_N, H_N
+    from Toolbox import AVG, RISPAVG, GB_FB
 except ImportError as e:
     print(f"Warning: Could not import Toolbox: {e}")
     AVG = None
     RISPAVG = None
     GB_FB = None
-    BB_N = None
-    K_N = None
-    H_N = None
+    
+def K_N(df):
+    k = len(df[df['PA_Result'].isin(['K', 'Ks', 'K-DO', 'K-BS', 'K-BF', 'K-DS','K-SF','K-P'])])
+    return str(k)
+def BB_N(df):
+    bb = len(df[df['PA_Result'].isin(['BB', 'BB-I', 'BB-IL', 'IBB', 'HBP','BB-P'])])
+    return str(bb)
+def H_N(df):
+    hit = len(df[df["PA_Result"].isin(['1B', '2B', '3B', 'HR', 'IHR'])])
+    return str(hit)
 
 # 資料庫緩存（避免重複查詢）
 _db_cache = {
@@ -539,7 +546,7 @@ def generate_pitcher_page1(pitcher_name='小園海斗', country='日本', df_all
         else:
             I1.text((22 + 46 * (i - 3), 280), display_value, fill=(0, 0, 0), font=statistic_font)
             
-    if BB_N is not None and len(df_player_each_PA) > 0:
+    if len(df_player_each_PA) > 0:
         if 'BB' in df_player_stat.columns and pd.isna(df_player_stat.at[0, 'BB']):
             df_player_stat.at[0, 'BB'] = str(BB_N(df_player_each_PA))
     #if K_N is not None and len(df_player_each_PA) > 0:
